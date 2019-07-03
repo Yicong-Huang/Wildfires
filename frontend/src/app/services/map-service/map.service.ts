@@ -15,6 +15,7 @@ export class MapService {
   liveTweetLoaded = new EventEmitter();
   mapLoaded = new EventEmitter();
   liveTweetCycle: any;
+  windDataLoaded = new EventEmitter();
 
   constructor() {}
 
@@ -74,6 +75,7 @@ export class MapService {
           };
           this.heatmapDataLoaded.emit({heatmapData: testData});
       });
+
   }
 
   getTweetsData(): void {
@@ -145,6 +147,18 @@ export class MapService {
 
   stopliveTweet(): void {
     window.clearInterval(this.liveTweetCycle);
+  }
+
+  getWindData(): void {
+      const windData = [];
+      const that = this;
+      $.ajax({
+          type: 'GET',
+          url: 'http://127.0.0.1:7000/latest',
+          dataType: 'json',
+      }).done( data => {
+          this.windDataLoaded.emit(data);
+      });
   }
 
 }
