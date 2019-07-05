@@ -2,7 +2,7 @@
 
 import psycopg2
 
-from connection import Connection
+from data_preparation.connection import Connection
 
 
 class Labeler:
@@ -41,12 +41,16 @@ class Labeler:
         next_batch = self.get_next_unlabeled()
         while next_batch:
             for id, text in next_batch:
-                char = None
-                while not char:
-                    print(
+                # char = None
+                # while not char:
+
+                print(
                         f'================================================\n\n\n\n{text}\n\n\n\n\n\n\n\n\n\n([1] for True, [r] for reverse previous, enter for next, other for False) ->')
 
-                    char = input().strip()
+                char = input().strip()
+                if not char:
+                    continue
+
 
                 while char == 'r':
                     if prev_text:

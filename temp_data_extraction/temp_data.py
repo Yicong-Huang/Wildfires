@@ -1,6 +1,7 @@
-from typing import Dict
-import pygrib
 import json
+import pygrib
+from typing import Dict
+
 
 class GRIBExtractor:
     def __init__(self, open_file_name, prop_name, prop_typeOfLevel):
@@ -8,7 +9,7 @@ class GRIBExtractor:
         self.data: Dict = self.extract(prop_name, prop_typeOfLevel)
 
     def extract(self, prop_name: str, prop_typeOfLevel: str) -> dict:
-        prop_msg = self.file_handler.select(name=prop_name, typeOfLevel=prop_typeOfLevel)[0]
+        prop_msg = self.file_handler.select(name=prop_name, typeOfLevel=prop_typeOfLevel, shortName='SOILL0-10cm')[0]
         prop_dict = dict()  # creates a new dictionary to store data
         prop_vals = prop_msg.values  # values under the started property
         lats, lons = prop_msg.latlons()
@@ -27,5 +28,7 @@ class GRIBExtractor:
 
 
 if __name__ == '__main__':
-    grib_extractor = GRIBExtractor('cdas1.t00z.sfluxgrbf02.grib2.txt', 'Temperature', 'surface')
-    temperature = grib_extractor[89.84351351786847, 1.8409067652075042]
+    grib_extractor = GRIBExtractor('cdas1.t00z.sfluxgrbf02.grib2.txt', 'Liquid volumetric soil moisture (non-frozen)',
+                                   'depthBelowLandLayer')
+    dict = grib_extractor.extract('cdas1.t00z.sfluxgrbf02.grib2.txt', 'Liquid volumetric soil moisture (non-frozen)',
+                                  'depthBelowLandLayer')
