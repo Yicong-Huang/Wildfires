@@ -167,8 +167,12 @@ fabric.properties
 out
 gen
 
+# node
+*/node_modules/
+
 # data
-data
+data/*
+!data/test/*  ### except for test data
 
 # mac DS
 */.DS_Store
