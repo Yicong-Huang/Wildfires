@@ -297,7 +297,7 @@ export class HeatmapComponent implements OnInit {
         points17.push(points1);
       }
       const temp_plot17 = L.layerGroup(points17);
-      this.mainControl.addOverlay(temp_plot17, 'blue-17C');
+      this.mainControl.addOverlay(temp_plot17, 'blue-265');
 
 
       let points18 = [];
@@ -310,7 +310,7 @@ export class HeatmapComponent implements OnInit {
         points18.push(points1);
       }
       const temp_plot18 = L.layerGroup(points18);
-      this.mainControl.addOverlay(temp_plot18, 'lightblue-18C');
+      this.mainControl.addOverlay(temp_plot18, 'lightblue-270');
 
       let points19 = [];
       for (let i of all_latlng[2]) {
@@ -322,7 +322,7 @@ export class HeatmapComponent implements OnInit {
         points19.push(points1);
       }
       const temp_plot19 = L.layerGroup(points19);
-      this.mainControl.addOverlay(temp_plot19, 'greenblue-19C');
+      this.mainControl.addOverlay(temp_plot19, 'greenblue-275');
 
       let points20 = [];
       for (let i of all_latlng[3]) {
@@ -334,7 +334,7 @@ export class HeatmapComponent implements OnInit {
         points20.push(points1);
       }
       const temp_plot20 = L.layerGroup(points20);
-      this.mainControl.addOverlay(temp_plot20, 'green-20C');
+      this.mainControl.addOverlay(temp_plot20, 'green-280');
 
       let points21 = [];
       for (let i of all_latlng[4]) {
@@ -346,7 +346,7 @@ export class HeatmapComponent implements OnInit {
         points21.push(points1);
       }
       const temp_plot21 = L.layerGroup(points21);
-      this.mainControl.addOverlay(temp_plot21, 'lightgreen-21C');
+      this.mainControl.addOverlay(temp_plot21, 'lightgreen-285');
 
 
       let points22 = []
@@ -359,7 +359,7 @@ export class HeatmapComponent implements OnInit {
         points22.push(points1)
       }
       const temp_plot22 = L.layerGroup(points22);
-      this.mainControl.addOverlay(temp_plot22, 'yellow-22C');
+      this.mainControl.addOverlay(temp_plot22, 'yellow-290');
 
       let points23 = []
       for (let i of all_latlng[6]) {
@@ -371,7 +371,7 @@ export class HeatmapComponent implements OnInit {
         points23.push(points1)
       }
       const temp_plot23 = L.layerGroup(points23);
-      this.mainControl.addOverlay(temp_plot23, 'darkyellow-23C');
+      this.mainControl.addOverlay(temp_plot23, 'darkyellow-295');
 
       let points24 = []
       for (let i of all_latlng[7]) {
@@ -383,7 +383,7 @@ export class HeatmapComponent implements OnInit {
         points24.push(points1)
       }
       const temp_plot24 = L.layerGroup(points24);
-      this.mainControl.addOverlay(temp_plot24, 'lightorange-24C');
+      this.mainControl.addOverlay(temp_plot24, 'lightorange-300');
 
       let points25 = []
       for (let i of all_latlng[8]) {
@@ -395,7 +395,7 @@ export class HeatmapComponent implements OnInit {
         points25.push(points1)
       }
       const temp_plot25 = L.layerGroup(points25);
-      this.mainControl.addOverlay(temp_plot25, 'orange-25C');
+      this.mainControl.addOverlay(temp_plot25, 'orange-305');
 
       let points26 = []
       for (let i of all_latlng[9]) {
@@ -407,7 +407,7 @@ export class HeatmapComponent implements OnInit {
         points26.push(points1)
       }
       const temp_plot26 = L.layerGroup(points26);
-      this.mainControl.addOverlay(temp_plot26, 'richorange-26C');
+      this.mainControl.addOverlay(temp_plot26, 'richorange-310');
 
       let points27 = []
       for (let i of all_latlng[10]) {
@@ -419,7 +419,7 @@ export class HeatmapComponent implements OnInit {
         points27.push(points1)
       }
       const temp_plot27 = L.layerGroup(points27);
-      this.mainControl.addOverlay(temp_plot27, 'red-27C');
+      this.mainControl.addOverlay(temp_plot27, 'red-315');
 
       let points28 = []
       for (let i of all_latlng[11]) {
@@ -431,7 +431,7 @@ export class HeatmapComponent implements OnInit {
         points28.push(points1)
       }
       const temp_plot28 = L.layerGroup(points28);
-      this.mainControl.addOverlay(temp_plot28, 'purplered-28C');
+      this.mainControl.addOverlay(temp_plot28, 'purplered-320');
 
       let points29 = []
       for (let i of all_latlng[12]) {
@@ -443,7 +443,7 @@ export class HeatmapComponent implements OnInit {
         points29.push(points1)
       }
       const temp_plot29 = L.layerGroup(points29);
-      this.mainControl.addOverlay(temp_plot29, 'lightpurple-29C');
+      this.mainControl.addOverlay(temp_plot29, 'lightpurple-325');
 
       let points30 = []
       for (let i of all_latlng[13]) {
@@ -455,7 +455,7 @@ export class HeatmapComponent implements OnInit {
         points30.push(points1)
       }
       const temp_plot30 = L.layerGroup(points30);
-      this.mainControl.addOverlay(temp_plot30, 'purple-30C');
+      this.mainControl.addOverlay(temp_plot30, 'purple-330');
 
       /*
       const polyline0 = L.polyline(all_latlng[0], {color: 'blue', smoothFactor: 1, opacity: 0.3 }).addTo(this.map);
