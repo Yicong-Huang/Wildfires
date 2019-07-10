@@ -6,8 +6,8 @@ from backend.data_preparation.extractor.extractorbase import ExtractorBase
 
 
 class GRIBExtractor(ExtractorBase):
-    TEMPERATURE_MODE = 0
-    MOISTURE_MODE = 1
+    TEMPERATURE_MODE = 2
+    MOISTURE_MODE = 3
 
     def __init__(self, filename: str):
         super().__init__(filename)

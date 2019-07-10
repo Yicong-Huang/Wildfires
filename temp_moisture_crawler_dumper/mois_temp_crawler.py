@@ -1,20 +1,23 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
+import datetime
 import os
 import time
 from urllib.request import urlopen
-import requests
-from bs4 import BeautifulSoup
-import datetime
+
 import psycopg2
+import requests
 import rootpath
+from bs4 import BeautifulSoup
+
 rootpath.append()
+
 from configurations import REC_TEMP_MOIS_PATH, HIS_MOIS_PATH, HIS_TEMP_PATH
 from backend.data_preparation.crawler.crawlerbase import CrawlerBase
-from mois_temp_dumper import MoistureTemperatureDumper
-from gribextractor import GRIBExtractor
-from tifextractor import TIFExtractor
+from temp_moisture_crawler_dumper.mois_temp_dumper import MoisTempDumper
+from temp_moisture_crawler_dumper.gribextractor import GRIBExtractor
+from temp_moisture_crawler_dumper.tifextractor import TIFExtractor
 
 
 class MoisTempCrawler(CrawlerBase):
@@ -25,6 +28,7 @@ class MoisTempCrawler(CrawlerBase):
     REC_MOIS_MODE = 3
 
     ERROR_LOG = '/error_urls.txt'
+    ERROR_LOG_NEW = '/error_urls_new.txt'
 
     HIS_TEMP_URL = 'http://ftp.cpc.ncep.noaa.gov/GIS/USDM_Products/temp/total/daily/'
     HIS_MOIS_URL = 'http://ftp.cpc.ncep.noaa.gov/GIS/USDM_Products/soil/total/daily/'
@@ -46,13 +50,13 @@ class MoisTempCrawler(CrawlerBase):
                                 host="cloudberry05.ics.uci.edu", port="5432")
 
         # set up dumper
-        dumper = MoistureTemperatureDumper()
+        dumper = MoisTempDumper()
         self.inject_dumper(dumper)
 
         if data_type == MoisTempCrawler.HIS_TEMP_MODE:
 
             # call crawler to crawl information to files
-            self.call_crawler(HIS_TEMP_PATH, MoisTempCrawler.HIS_TEMP_URL)
+            self.call_his_crawler(HIS_TEMP_PATH, MoisTempCrawler.HIS_TEMP_URL)
 
             # call dumper for historical temp & mois
             self.call_his_dumper(conn, HIS_TEMP_PATH, data_type)
@@ -60,7 +64,7 @@ class MoisTempCrawler(CrawlerBase):
         elif data_type == MoisTempCrawler.HIS_MOIS_MODE:
 
             # call crawler to crawl information to files
-            self.call_crawler(HIS_MOIS_PATH, MoisTempCrawler.HIS_MOIS_URL)
+            self.call_his_crawler(HIS_MOIS_PATH, MoisTempCrawler.HIS_MOIS_URL)
 
             # call dumper for historical temp & mois
             self.call_his_dumper(conn, HIS_MOIS_PATH, data_type)
@@ -68,11 +72,10 @@ class MoisTempCrawler(CrawlerBase):
         elif data_type == MoisTempCrawler.REC_TEMP_MODE or data_type == MoisTempCrawler.REC_MOIS_MODE:
 
             # call crawler to crawl information to files
-            self.call_crawler(REC_TEMP_MOIS_PATH, MoisTempCrawler.REC_TEMP_MOIS_URL)
+            # self.call_rec_crawler(REC_TEMP_MOIS_PATH, MoisTempCrawler.REC_TEMP_MOIS_URL, run_count)
 
             # call dumper for recent temp & mois
             self.call_rec_dumper(conn, REC_TEMP_MOIS_PATH, data_type, run_count)
-
 
 
     def crawl(self, path, url):
@@ -92,7 +95,7 @@ class MoisTempCrawler(CrawlerBase):
                 # continue to next url
                 # if not stuck, return the url request's content
                 req = self.timeout_handling(file_url, path + '/error_urls.txt')
-                if req.eq(None):
+                if req == None:
                     continue
 
                 if 'sfluxgrbf' in file_name:  # indicate it's a recent data file
@@ -109,9 +112,9 @@ class MoisTempCrawler(CrawlerBase):
         if not os.path.exists(path):
             os.makedirs(path)
 
-        if os.path.exists(path + '/error_urls.txt'):  # there exists error urls
-            for url in open(path + '/error_urls.txt'):
-                req = self.timeout_handling(url.strip('\n'), path + '/error_urls_new.txt')
+        if os.path.exists(path + MoisTempCrawler.ERROR_LOG):  # there exists error urls
+            for url in open(path + MoisTempCrawler.ERROR_LOG):
+                req = self.timeout_handling(url.strip('\n'), path + MoisTempCrawler.ERROR_LOG_NEW)
                 if req.eq(None):
                     continue
 
@@ -150,25 +153,35 @@ class MoisTempCrawler(CrawlerBase):
                 error_file.write(file_url + '\n')
             return None
         else:
-            return req.content
+            return req
 
     def write_request_file(self, file_path, content):
         with open(file_path, 'wb') as file_to_write:
             file_to_write.write(content)
 
     def update_error_urls_file(self, path_to_error_urls):
-        os.remove(path_to_error_urls + '/error_urls.txt')  # get rid of the older error url file
+        os.remove(path_to_error_urls + MoisTempCrawler.ERROR_LOG)  # get rid of the older error url file
         if os.path.exists(
-                path_to_error_urls + '/error_urls_new.txt'):  # change the new error url file's name into the older one
-            os.rename(path_to_error_urls + '/error_urls_new.txt', path_to_error_urls + '/error_urls.txt')
+                path_to_error_urls + MoisTempCrawler.ERROR_LOG_NEW):  # change the new error url file's name into the older one
+            os.rename(path_to_error_urls + MoisTempCrawler.ERROR_LOG_NEW,
+                      path_to_error_urls + MoisTempCrawler.ERROR_LOG)
 
-
-    def call_crawler(self, path, url):
+    def call_his_crawler(self, path, url):
         # start crawling information to files
         # and run until there aren't any undealed error urls
+        self.crawl(path, url)
+        print(url)
         while os.path.exists(path + MoisTempCrawler.ERROR_LOG):
-            self.crawl(path, url)
             self.recall_crawl(path)
+
+    def call_rec_crawler(self, path, url, run_count=1):
+        # start crawling information to files
+        # and run until there aren't any undealed error urls
+        for cur_run_count in range(1, run_count + 1):
+            date = self.get_date(cur_run_count)
+            self.crawl(path, url + date + '/')
+            while os.path.exists(path + MoisTempCrawler.ERROR_LOG):
+                self.recall_crawl(path)
 
     def call_his_dumper(self, conn, path, data_type):
         # all files in path
@@ -189,7 +202,8 @@ class MoisTempCrawler(CrawlerBase):
                     # dump temp or mois data if not equals to '-999000000'
                     if str(value) != '-999000000':
                         # call dumper to dump into database
-                        self.dumper.insert_one(conn, data_type, p_lat=lat, p_long=long, p_value=float(value), p_time=time)
+                        self.dumper.insert_one(data_type, conn, p_lat=lat, p_long=long, p_value=float(value),
+                                               p_time=time)
 
                 # remove all dumped files
                 os.remove(path + '/' + file)
@@ -223,8 +237,8 @@ class MoisTempCrawler(CrawlerBase):
 
                         # dump temp or mois data if not equals to 'nan'
                         if str(value) != 'nan':
-                            self.dumper.insert_one(conn, data_type, p_lat=lat, p_long=long, p_value=value,
-                                                    p_start=start_time, p_end=end_time)
+                            self.dumper.insert_one(data_type, conn, p_lat=lat, p_long=long, p_value=value,
+                                                   p_start=start_time, p_end=end_time)
 
                     # remove all dumped files
                     os.remove(path + '/' + file)
@@ -253,16 +267,7 @@ class MoisTempCrawler(CrawlerBase):
     def call_grib_extractor(self, data_type, file):
         # call GRIB Extractor
         grib_extractor = GRIBExtractor(file)
-        if data_type == MoisTempCrawler.REC_MOIS_MODE:
-            grib_extractor.extract(
-                prop_name= MoisTempCrawler.MOIS_PROP_NAME,
-                prop_first=0, prop_second=10
-            )
-        elif data_type == MoisTempCrawler.REC_TEMP_MODE:
-            grib_extractor.extract(
-                prop_name = MoisTempCrawler.TEMP_PROP_NAME,
-                prop_typeOfLevel = MoisTempCrawler.TEMP_PROP_TYPEOFLEVEL
-            )
+        grib_extractor.extract(data_type)
         return grib_extractor
 
     def get_start_end_time(self, file, date):
@@ -286,14 +291,14 @@ if __name__ == '__main__':
     crawler = MoisTempCrawler()
 
     # crawl all the historical temperature data, extract and dump into database
-    crawler.start(data_type=MoisTempCrawler.HIS_TEMP_MODE)
+    # crawler.start(data_type=MoisTempCrawler.HIS_TEMP_MODE)
 
     # crawl all the historical moisture data, extract and dump into database
-    crawler.start(data_type=MoisTempCrawler.HIS_MOIS_MODE)
+    # crawler.start(data_type=MoisTempCrawler.HIS_MOIS_MODE)
 
     # crawl recent temperature data, extract and dump into database
     # run_count = 1 for yesterday data, 6 for recent 6 days data (for the first time execution, run_count = 6)
-    crawler.start(data_type=MoisTempCrawler.REC_TEMP_MODE, run_count=1)
+    # crawler.start(data_type=MoisTempCrawler.REC_TEMP_MODE, run_count=1)
 
     # crawl recent moisture data, extract and dump into database
     # run_count = 1 for yesterday data, 6 for recent 6 days data (for the first time execution, run_count = 6)
