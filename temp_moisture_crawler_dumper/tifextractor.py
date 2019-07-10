@@ -35,17 +35,16 @@ class TIFExtractor(ExtractorBase):
             lat = line.split()[1]
             value = line.split()[2]
             if str(value) != '-999000000':
-                if 'z.full' in self.filename:  # for temperature data
+                if 't.full' in self.filename:  # for historical temperature data
                     time = self.filename[20:28]
                     dictionary[(lat, long, time)] = value
-                if 'w.full' in self.filename:  # for moisture data
+                if 'w.full' in self.filename:  # for historical moisture data
                     time = self.filename[7:15]
                     dictionary[(lat, long, time)] = value
             line = xyzFile.readline()
 
         self.data: Dict = dictionary
         os.remove('output.xyz')
-        return dictionary
 
     def export(self, file_type: str, file_name) -> None:  # json
         if file_type == 'json':
