@@ -1,5 +1,4 @@
 import json
-import os
 from typing import Dict
 
 import pygrib
@@ -7,23 +6,32 @@ import rootpath
 
 rootpath.append()
 from backend.data_preparation.extractor.extractorbase import ExtractorBase
-from configurations import TEST_DATA_PATH
 
 
 class GRIBExtractor(ExtractorBase):
-    def __init__(self, filename: str):
-        super().__init__()
-        self.file_handler = pygrib.open(filename)
-        self.data: Dict
+    TEMPERATURE_MODE = 2
+    MOISTURE_MODE = 3
 
-    def extract(self, prop_name: str, prop_typeOfLevel: str = None) -> dict:
-        prop_msg, = self.file_handler.select(name=prop_name)  # !! here ! we don't need the prop_typeOfLevel
-        self.data = dict()  # creates a new dictionary to store data
-        prop_values = prop_msg.values  # values under the started property
-        lats, longs = prop_msg.latlons()
-        for row_cnt in range(0, len(prop_values)):
-            for col_cnt in range(0, len(prop_values[row_cnt])):
-                self.data[str((lats[row_cnt][col_cnt], longs[row_cnt][col_cnt]))] = prop_values[row_cnt][col_cnt]
+    def __init__(self, filename: str):
+        super().__init__(filename)
+        self.file_handler = pygrib.open(filename)
+        self.data: Dict = dict()
+
+    def extract(self, data_type) -> dict:
+        if data_type == GRIBExtractor.TEMPERATURE_MODE:
+            # select grib files' attributes
+            prop_msg = self.file_handler.select(name='Temperature', typeOfLevel='surface')[0]
+        elif data_type == GRIBExtractor.MOISTURE_MODE:
+            prop_msg = self.file_handler.select(name='Liquid volumetric soil moisture (non-frozen)',
+                                                scaledValueOfFirstFixedSurface=0,
+                                                scaledValueOfSecondFixedSurface=10)[0]
+        prop_dict = dict()  # creates a new dictionary to store data
+        prop_vals = prop_msg.values  # values under the started property
+        lats, lons = prop_msg.latlons()
+        for row_cnt in range(0, len(prop_vals)):
+            for col_cnt in range(0, len(prop_vals[row_cnt])):
+                prop_dict[str((lats[row_cnt][col_cnt], lons[row_cnt][col_cnt]))] = prop_vals[row_cnt][col_cnt]
+        self.data = prop_dict
         return self.data  # the location coordinates are different, don't need to worry about duplicated keys
 
     def export(self, file_type: str, file_name) -> None:  # json
@@ -36,8 +44,14 @@ class GRIBExtractor(ExtractorBase):
 
 
 if __name__ == '__main__':
-    grib_extractor = GRIBExtractor(os.path.join(TEST_DATA_PATH, 'cdas1.t00z.sfluxgrbf00.grib2.txt'), 'Temperature',
-                                   'surface')
-    temperature = grib_extractor[89.84351351786847, 1.8409067652075042]
+    # use case of GRIBExtractor, put in the path to the grib file
+    grib_extractor = GRIBExtractor('cdas1.t00z.sfluxgrbf00.grib2_20190706.txt')
 
+    # if you want to get temperature data in a dictionary type
+    temperature = grib_extractor.extract(data_type=GRIBExtractor.TEMPERATURE_MODE)
+    # each item is like: (lat,long):value
     print(temperature)
+
+    # if you want to get moisture data in a dictionary type
+    moisture = grib_extractor.extract(data_type=GRIBExtractor.MOISTURE_MODE)
+    print(moisture)
