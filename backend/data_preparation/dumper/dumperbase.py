@@ -7,16 +7,14 @@ class DumperBase(ABC):
         self.inserted_count = 0
         # dumper holds no data in memory
 
-    @staticmethod
     @abstractmethod
-    def insert_one(*args, **kwargs):
+    def insert_one(self, *args, **kwargs):
         # insert one record into database
         # recording insert count number to self.inserted_count
         pass
 
-    @staticmethod
     @abstractmethod
-    def insert_batch(*args, **kwargs):
+    def insert_batch(self, *args, **kwargs):
         # insert a batch of records into database
         # recording insert count number to self.inserted_count
         pass
