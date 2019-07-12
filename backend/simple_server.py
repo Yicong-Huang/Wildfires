@@ -31,7 +31,49 @@ tweet_query = "select r.create_at, l.top_left_long, l.top_left_lat, l.bottom_rig
 
 @app.route("/temp")
 def send_temp_data():
-    resp = make_response(send_from_directory('data', 'temp.csv'))
+    query = "select * from recent_temperature "
+    with Connection() as conn:
+        cur = conn.cursor()
+        cur.execute(query)
+        resp = make_response(
+            jsonify([{"lng": long, "lat": lat, "temperature": value} for lat, long, value, _ in cur.fetchall()]))
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        cur.close()
+    return resp
+
+
+@app.route("/wind")
+def send_wind_data():
+    grbs = pygrib.open('gfs.t12z.pgrb2.0p25.anl')
+    grbs.seek(0)
+    result_list = []
+    result = {}
+    result['header'] = {}
+    result['data'] = np.array([])
+    for g in grbs:
+        for row in g['values']:
+            result['data'] = np.concatenate((result['data'], row), axis=0)
+
+        result['header'] = {
+            'parameterCategory': g["parameterCategory"],
+            'parameterNumber': g['parameterNumber'],
+            'numberPoints': len(result['data']),
+            'nx': g['Ni'],
+            'ny': g['Nj'],
+            'lo1': g['longitudeOfFirstGridPointInDegrees'],
+            'lo2': g['longitudeOfLastGridPointInDegrees'],
+            'la1': g['latitudeOfFirstGridPointInDegrees'],
+            'la2': g['latitudeOfLastGridPointInDegrees'],
+            'dx': g['iDirectionIncrementInDegrees'],
+            'dy': g['jDirectionIncrementInDegrees'],
+        }
+        result['data'] = result['data'].tolist()
+        result_list.append(result)
+        result = {}
+        result['header'] = {}
+        result['data'] = []
+        resp = make_response(jsonify(result_list))
+    # resp = make_response(send_from_directory('','2019070312.json'))
     resp.headers['Access-Control-Allow-Origin'] = '*'
     return resp
 
@@ -85,8 +127,7 @@ def send_tweets_data():
         cur.execute(tweet_query)
 
         resp = make_response(
-            jsonify(
-                [{"create_at": time.isoformat(), "long": long, "lat": lat} for time, long, lat, _, _ in cur.fetchall()]))
+            jsonify([{"create_at": time.isoformat(), "long": long, "lat": lat} for time, long, lat, _, _ in cur.fetchall()]))
         resp.headers['Access-Control-Allow-Origin'] = '*'
         cur.close()
     return resp

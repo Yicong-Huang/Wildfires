@@ -1,12 +1,11 @@
 import {Component, EventEmitter, Input, OnInit} from '@angular/core';
 import 'leaflet/dist/leaflet.css';
-
 declare let L;
 import * as $ from 'jquery';
 import HeatmapOverlay from 'leaflet-heatmap/leaflet-heatmap.js';
 import {MapService} from '../../services/map-service/map.service';
 import 'leaflet-maskcanvas';
-import 'leaflet-rain';
+import 'leaflet-velocity-ts';
 import * as turf from '@turf/turf'
 
 //import '../d3/d3'
@@ -85,101 +84,100 @@ export class HeatmapComponent implements OnInit {
         this.mapService.getTweetsData();
         this.mapService.tweetDataLoaded.subscribe(this.tweetDataHandler);
 
-        // Get rainfall data from service
-        this.mapService.getWildfirePredictionData();
-        this.mapService.fireEventDataLoaded.subscribe(this.fireEventHandler);
+    // Get rainfall data from service
+    this.mapService.getWildfirePredictionData();
+    this.mapService.fireEventDataLoaded.subscribe(this.fireEventHandler);
 
-        // Add event Listener to live tweet switch
-        $('#liveTweetSwitch').on('click', this.liveTweetSwitchHandler);
+    // Get wind data from service
+    this.mapService.getWindData();
+    this.mapService.windDataLoaded.subscribe(this.windDataHandler);
 
-        // Add event Listener when user specify a time range on time series
-        $(window).on('timeRangeChange', this.timeRangeChangeHandler);
+    // Add event Listener to live tweet switch
+    $('#liveTweetSwitch').on('click', this.liveTweetSwitchHandler);
 
-        // Add event Listener when user specify a temperature range on temp series
-        $(window).on('tempRangeChange', this.tempRangeChangeHandler);
+    // Add event Listener when user specify a time range on time series
+    $(window).on('timeRangeChange', this.timeRangeChangeHandler);
+  }
+
+  tweetDataHandler = (data) => {
+    this.tweetLayer = L.TileLayer.maskCanvas({
+      radius: 10,
+      useAbsoluteRadius: true,
+      color: '#000',
+      opacity: 1,
+      noMask: true,
+      lineColor: '#e25822'
+    });
+    const tempData = [];
+    this.tweetData = data.tweetData;
+    data.tweetData.forEach(x => {
+      tempData.push([x[0], x[1]]);
+    });
+
+    this.tweetLayer.setData(tempData);
+    this.mainControl.addOverlay(this.tweetLayer, 'Fire tweet');
+
+  }
+
+
+  liveTweetSwitchHandler = (event) => {
+    if (this.switchStatus === 1) {
+      this.liveTweetLayer.clearLayers();
+      this.mapService.stopliveTweet();
+      this.switchStatus = 0;
+      return;
     }
+    this.mapService.getLiveTweetData();
+    this.mapService.liveTweetLoaded.subscribe(this.liveTweetDataHandler);
+    this.switchStatus = 1;
+  }
 
-    tweetDataHandler = (data) => {
-        this.tweetLayer = L.TileLayer.maskCanvas({
-            radius: 10,
-            useAbsoluteRadius: true,
-            color: '#000',
-            opacity: 1,
-            noMask: true,
-            lineColor: '#e25822'
-        });
-        const tempData = [];
-        this.tweetData = data.tweetData;
-        data.tweetData.forEach(x => {
-            tempData.push([x[0], x[1]]);
-        });
+  liveTweetDataHandler = (data) => {
+    this.liveTweetMarkers = L.TileLayer.maskCanvas({
+      radius: 10,
+      useAbsoluteRadius: true,
+      color: '#000',
+      opacity: 1,
+      noMask: true,
+      lineColor: '#e25822'
+    });
 
-        this.tweetLayer.setData(tempData);
-        this.mainControl.addOverlay(this.tweetLayer, 'Fire tweet');
+    // Mockup Data for liveTweetLayer
+    const birdIcon = L.icon({
+      iconUrl: 'assets/image/perfectBird.gif',
+      iconSize: [20, 20]
+    });
 
-    }
+    const birdCoordinates = [];
 
-
-    liveTweetSwitchHandler = (event) => {
-        if (this.switchStatus === 1) {
-            this.liveTweetLayer.clearLayers();
-            this.mapService.stopliveTweet();
-            this.switchStatus = 0;
-            return;
-        }
-        this.mapService.getLiveTweetData();
-        this.mapService.liveTweetLoaded.subscribe(this.liveTweetDataHandler);
-        this.switchStatus = 1;
-    }
-
-    liveTweetDataHandler = (data) => {
-        this.liveTweetMarkers = L.TileLayer.maskCanvas({
-            radius: 10,
-            useAbsoluteRadius: true,
-            color: '#000',
-            opacity: 1,
-            noMask: true,
-            lineColor: '#e25822'
-        });
-
-        // Mockup Data for liveTweetLayer
-        const birdIcon = L.icon({
-            iconUrl: 'assets/image/perfectBird.gif',
-            iconSize: [20, 20]
-        });
-
-        console.log(data);
-
-        const birdCoordinates = [];
-
-        data.data.forEach((x) => {
-            if (!this.liveTweetIdSet.has(x.id)) {
-                const point = [x.lat, x.long];
-                birdCoordinates.push([x.lat, x.long]);
-                const marker = L.marker(point, {icon: birdIcon}).bindPopup('I am a live tweet');
-                this.liveTweetBird.push(marker);
-                this.liveTweetIdSet.add(x.id);
-            }
-        })
+    data.data.forEach((tweet) => {
+      if (!this.liveTweetIdSet.has(tweet.id)) {
+        const point = [tweet.lat, tweet.long];
+        birdCoordinates.push([tweet.lat, tweet.long]);
+        const marker = L.marker(point, {icon: birdIcon}).bindPopup('I am a live tweet');
+        this.liveTweetBird.push(marker);
+        this.liveTweetIdSet.add(tweet.id);
+      }
+    });
 
         this.liveTweetLayer = L.layerGroup(this.liveTweetBird);
         this.liveTweetLayer.addTo(this.map);
 
 
-        this.liveTweetMarkers.setData(birdCoordinates);
-        const birds = $('.leaflet-marker-icon');
-        window.setTimeout(() => {
-            this.liveTweetBird = [];
-            this.liveTweetLayer.clearLayers();
-            this.liveTweetLayer.addLayer(this.liveTweetMarkers);
-        }, 3200);
-        let bird: any = 0;
-        for (bird of birds) {
-            if (bird.src.indexOf('perfectBird') !== -1) {
-                $(bird).css('animation', 'fly 3s linear');
-            }
-        }
+    this.liveTweetMarkers.setData(birdCoordinates);
+    const birds = $('.leaflet-marker-icon');
+    window.setTimeout(() => {
+      this.liveTweetBird = [];
+      this.liveTweetLayer.clearLayers();
+      this.liveTweetLayer.addLayer(this.liveTweetMarkers);
+    }, 3200);
+    let bird: any = 0;
+    for (bird of birds) {
+      if (bird.src.indexOf('perfectBird') !== -1) {
+        $(bird).css('animation', 'fly 3s linear');
+      }
     }
+  }
 
     timeRangeChangeHandler = (event, data) => {
         const tempData = [];
@@ -191,26 +189,43 @@ export class HeatmapComponent implements OnInit {
         this.tweetLayer.setData(tempData);
     }
 
+  fireEventHandler = (data) => {
 
-    fireEventHandler = (data) => {
+    const fireEventList = [];
 
-        const fireEventList = [];
+    for (const ev of  data.fireEvents) {
+      const point = [ev.lat, ev.long];
+      const size = 40;
+      const fireIcon = L.icon({
+        iconUrl: 'assets/image/pixelfire.gif',
+        iconSize: [size, size],
+      });
+      const marker = L.marker(point, {icon: fireIcon}).bindPopup('I am on fire(image>40%)');
+      fireEventList.push(marker);
 
-        for (let i = 0; i < data.fireEvents.length; i++) {
-            const point = [data.fireEvents[i].lat, data.fireEvents[i].long];
-            const size = 40;
-            const fireIcon = L.icon({
-                iconUrl: 'assets/image/pixelfire.gif',
-                iconSize: [size, size],
-            });
-            const marker = L.marker(point, {icon: fireIcon}).bindPopup('I am on fire(image>40%)');
-            fireEventList.push(marker);
-
-        }
-        const fireEvents = L.layerGroup(fireEventList);
-        this.mainControl.addOverlay(fireEvents, 'Fire event');
     }
+    const fireEvents = L.layerGroup(fireEventList);
+    this.mainControl.addOverlay(fireEvents, 'Fire event');
+  }
 
+  windDataHandler = (wind) => {
+    // there's not much document about leaflet-velocity.
+    // all we got is an example usage from
+    // github.com/0nza1101/leaflet-velocity-ts
+    const velocityLayer = L.velocityLayer({
+      displayValues: true,
+      displayOptions: {
+        position: 'bottomleft', // REQUIRED !
+        emptyString: 'No velocity data', // REQUIRED !
+        angleConvention: 'bearingCW', // REQUIRED !
+        velocityType: 'Global Wind',
+        displayPosition: 'bottomleft',
+        displayEmptyString: 'No wind data',
+        speedUnit: 'm/s'
+      },
+      data: wind.data,
+      maxVelocity: 12 // affect color and animation speed of wind
+    });
 
     heatmapDataHandler = (data) => {
         const heatmapConfig = {
@@ -247,6 +262,9 @@ export class HeatmapComponent implements OnInit {
         heatmapLayer.setData({max: 680, data: data.contourData});
         this.mainControl.addOverlay(heatmapLayer, 'Temp heatmap');
     }
+        this.mainControl.addOverlay(velocityLayer, 'Global wind');
+  }
+
 
 
     contourDataHandler = (data) => {
@@ -408,6 +426,5 @@ export class HeatmapComponent implements OnInit {
         }
     }
      */
-
 
 }

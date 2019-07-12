@@ -2,6 +2,9 @@ from configparser import ConfigParser
 from typing import Iterator, Dict
 
 import psycopg2
+import rootpath
+
+rootpath.append()
 
 from configurations import DATABASE_CONFIG_PATH
 
@@ -12,7 +15,19 @@ class Connection:
         self.conn = None
 
     def __call__(self, *args, **kwargs):
-        return psycopg2.connect(**self.config())
+        connection = psycopg2.connect(**self.config())
+        cursor = connection.cursor()
+        cursor.execute("SELECT sum(numbackends) FROM pg_stat_database;")
+        connection_count, = cursor.fetchone()
+        cursor.execute("SHOW max_connections;")
+        connection_max_count, = cursor.fetchone()
+
+        # adding this log to show current database connection status
+        print(
+            f"[DATABASE] HOST = {self.config().get('host')}, CONNECTION COUNT "
+            f"= {connection_count}, MAXIMUM = {connection_max_count}")
+        cursor.close()
+        return connection
 
     def __enter__(self):
         self.conn = self()
@@ -33,15 +48,29 @@ class Connection:
 
     def sql_execute(self, sql) -> Iterator:
         """to execute an SQL query and iterate the output"""
+        if any([keyword in sql.upper() for keyword in ["INSERT", "UPDATE"]]):
+            print("You are running SELECT or UPDATE without committing, retry with argument commit=True")
         with self() as connection:
             cursor = connection.cursor()
             cursor.execute(sql)
 
-            row = cursor.fetchone()
-            while row:
-                yield row
+            try:
                 row = cursor.fetchone()
+                while row:
+                    yield row
+                    row = cursor.fetchone()
+            except psycopg2.ProgrammingError:
+                pass
+            finally:
+                cursor.close()
+
+    def sql_execute_commit(self, sql) -> None:
+        """to execute and commit an SQL query"""
+        with self() as connection:
+            cursor = connection.cursor()
+            cursor.execute(sql)
             cursor.close()
+            connection.commit()
 
 
 if __name__ == '__main__':
