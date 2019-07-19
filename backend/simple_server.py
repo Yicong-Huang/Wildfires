@@ -22,7 +22,6 @@ from paths import NLTK_MODEL_PATH, BOUNDARY_PATH
 
 app = Flask(__name__, static_url_path='')
 
-
 nl: NLTKTest = pickle.load(open(NLTK_MODEL_PATH, 'rb'))
 api = twitter.Api(consumer_key="",
                   consumer_secret="",
