@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, EventEmitter, Input, OnInit} from '@angular/core';
 import 'leaflet/dist/leaflet.css';
 
 declare let L;
@@ -94,6 +94,15 @@ export class HeatmapComponent implements OnInit {
         // Get wind data from service
         this.mapService.getWindData();
         this.mapService.windDataLoaded.subscribe(this.windDataHandler);
+
+        //this.ChoroplethDataHandler();
+        //this.CityDataHandler();
+        this.geojson = L.geoJson(citiesData, {
+               style: this.style,
+               onEachFeature: this.onEachFeature
+           }).addTo(this.map);
+
+
 
         // Add event Listener to live tweet switch
         $('#liveTweetSwitch').on('click', this.liveTweetSwitchHandler);

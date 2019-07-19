@@ -14,8 +14,6 @@ import matplotlib.path as mplPath
 import numpy as np
 from typing import List,Dict
 import os
-
-
 import pygrib
 
 from flask import Flask, send_from_directory, make_response, jsonify

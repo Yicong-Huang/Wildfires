@@ -14,7 +14,7 @@ export class MapService {
     fireEventDataLoaded = new EventEmitter();
     liveTweetLoaded = new EventEmitter();
     mapLoaded = new EventEmitter();
-
+    windDataLoaded = new EventEmitter();
     contourDataLoaded = new EventEmitter();
     temperatureChangeEvent = new EventEmitter();
     liveTweetCycle: any;
