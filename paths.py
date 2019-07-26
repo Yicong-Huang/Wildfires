@@ -34,6 +34,8 @@ WIND_DATA_DIR = os.path.join(ROOT_DIR, 'backend', 'data')
 
 GRIB2JSON_PATH = os.path.join('converter', 'bin', 'grib2json')
 
+FIRE_DATA_DIR = os.path.join(ROOT_DIR, 'data', 'fire-data')
+
 TWEET_IMAGES_DIR = os.path.join(ROOT_DIR, 'data/tweet_images')
 
 MODELS_SAVE_PATH = os.path.join(ROOT_DIR, 'backend/models/')
