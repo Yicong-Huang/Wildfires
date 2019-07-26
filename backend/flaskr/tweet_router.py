@@ -64,17 +64,19 @@ def send_tweets_data():
 def send_recent_tweet_data():
     with Connection() as conn:
         cur = conn.cursor()
-        livetweet_query = "select r.create_at, l.top_left_long, l.top_left_lat, l.bottom_right_long, l.bottom_right_lat, l.id, r.text " \
-                          "from records r,locations l where r.id=l.id " \
+        livetweet_query1 = "select r.create_at, l.top_left_long, l.top_left_lat, l.bottom_right_long, l.bottom_right_lat, l.id, r.text, r.text " \
+                           "from records r,locations l where r.id=l.id " \
                           "and r.create_at between (SELECT current_timestamp - interval '2 day') and current_timestamp"
-        # "select r.create_at, l.top_left_long, l.top_left_lat, l.bottom_right_long, l.bottom_right_lat " \
-        # "from records r,locations l where r.id=l.id and r.create_at = (select max(r.create_at) from records r,locations l where r.id=l.id)"
 
+        livetweet_query = "select it.create_at, it.top_left_long, it.top_left_lat, it.bottom_right_long, it.bottom_right_lat, it.id, it.text, i.image_url from " \
+                          "(select r.create_at, l.top_left_long, l.top_left_lat, l.bottom_right_long, l.bottom_right_lat, l.id, r.text " \
+                          "from records r,locations l where r.id=l.id and r.create_at between (SELECT current_timestamp - interval '2 day') and current_timestamp) AS it LEFT JOIN images i on i.id = it.id"
         cur.execute(livetweet_query)
 
         resp = make_response(
-            jsonify([{"create_at": time.isoformat(), "long": long, "lat": lat, "id": id, "text": text} for
-                     time, long, lat, _, _, id, text in
-                     cur.fetchall()]))
+            jsonify(
+                [{"create_at": time.isoformat(), "long": long, "lat": lat, "id": id, "text": text, "image": image} for
+                 time, long, lat, _, _, id, text, image in
+                 cur.fetchall()]))
         cur.close()
     return resp
