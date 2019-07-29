@@ -70,9 +70,12 @@ def send_recent_tweet_data():
 
         livetweet_query = "select it.create_at, it.top_left_long, it.top_left_lat, it.bottom_right_long, it.bottom_right_lat, it.id, it.text, i.image_url from " \
                           "(select r.create_at, l.top_left_long, l.top_left_lat, l.bottom_right_long, l.bottom_right_lat, l.id, r.text " \
-                          "from records r,locations l where r.id=l.id and r.create_at between (SELECT current_timestamp - interval '6 month') and current_timestamp) AS it LEFT JOIN images i on i.id = it.id"
-        cur.execute(livetweet_query)
+                          "from records r,locations l where r.id=l.id and r.create_at between (SELECT current_timestamp - interval '6 month') and current_timestamp) AS it LEFT JOIN images i on i.id = it.id where i.image_url is not null"
 
+
+
+
+        cur.execute(livetweet_query)
         resp = make_response(
             jsonify(
                 [{"create_at": time.isoformat(), "long": long, "lat": lat, "id": id, "text": text, "image": image} for
