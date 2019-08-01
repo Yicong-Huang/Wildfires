@@ -4,6 +4,7 @@ import {MapService} from '../../services/map-service/map.service';
 import {Tweet} from '../../models/tweet.model';
 
 declare var require: any;
+const Highcharts = require('highcharts');
 
 @Component({
     selector: 'app-time-series',
@@ -13,6 +14,8 @@ declare var require: any;
 export class TimeSeriesComponent implements OnInit {
 
     @Output() timeRangeChange = new EventEmitter();
+    private hasPlotBand = false;
+    private currentDate = null;
 
     constructor(private mapService: MapService) {
     }
@@ -34,14 +37,12 @@ export class TimeSeriesComponent implements OnInit {
                 dailyCount[createAt] = 1;
             }
         }
-
-
         // time bar
         Object.keys(dailyCount).sort().forEach(key => {
             chartData.push([new Date(key).getTime(), dailyCount[key]]);
         });
 
-        require('highcharts').chart('timebar-container', {
+        const timeseries = Highcharts.chart('timebar-container', {
             chart: {
                 type: 'line',
                 zoomType: 'x',
@@ -59,7 +60,37 @@ export class TimeSeriesComponent implements OnInit {
                             timebarEnd = event.target.axes[0].dataMax;
                         }
                         $(window).trigger('timeRangeChange', {timebarStart, timebarEnd});
-                    }
+                    },
+                    click: (event) => {
+                        const halfUnit = 86400000 / 2;
+                        let dateInMs = event.xAxis[0].value - event.xAxis[0].value % halfUnit;
+                        dateInMs += dateInMs % (halfUnit * 2);
+                        const dateInISO = new Date(dateInMs).toISOString();
+                        if (!this.hasPlotBand) {
+                            timeseries.xAxis[0].addPlotBand({
+                                from: dateInMs - halfUnit,
+                                to: dateInMs + halfUnit,
+                                color: '#656253',
+                                id: 'plotBand'
+                            });
+                            this.currentDate = dateInISO;
+                            this.hasPlotBand = true;
+                        } else if (dateInISO !== this.currentDate) {
+                            timeseries.xAxis[0].removePlotBand('plotBand');
+                            timeseries.xAxis[0].addPlotBand({
+                                from: dateInMs - halfUnit,
+                                to: dateInMs + halfUnit,
+                                color: '#656253',
+                                id: 'plotBand'
+                            });
+                            this.currentDate = dateInISO;
+                            this.hasPlotBand = true;
+                        } else {
+                            timeseries.xAxis[0].removePlotBand('plotBand');
+                            this.currentDate = null;
+                            this.hasPlotBand = false;
+                        }
+                    },
                 }
             },
             title: {
@@ -69,7 +100,8 @@ export class TimeSeriesComponent implements OnInit {
                 }
             },
             xAxis: {
-                type: 'datetime'
+                type: 'datetime',
+                crosshair: true,
             },
             series: [{
                 data: chartData,
