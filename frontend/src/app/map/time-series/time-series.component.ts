@@ -90,6 +90,8 @@ export class TimeSeriesComponent implements OnInit {
                             this.currentDate = null;
                             this.hasPlotBand = false;
                         }
+                        this.mapService.changeCurrentDate(this.currentDate);
+
                     },
                 }
             },
