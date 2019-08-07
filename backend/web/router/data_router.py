@@ -1,7 +1,7 @@
 import json
 import os
 from typing import List, Dict
-
+import json
 import matplotlib.path as mplPath
 import numpy as np
 import rootpath
@@ -164,7 +164,7 @@ def fire():
         cur = conn.cursor()
         cur.execute(query)
         resp = make_response(
-            jsonify([{"type": "Feature", "id": "01", "properties": {"name": name, "agency": agency, "datetime": dt}, "geometry":geom} for name, agency, dt, geom in cur.fetchall()])
+            jsonify([{"type": "Feature", "id": "01", "properties": {"name": name, "agency": agency, "datetime": dt}, "geometry": json.loads(geom)} for name, agency, dt, geom in cur.fetchall()])
         )
             # jsonify([{"name": name, "agency": agency, "datetime": dt, "geom": geom} for name, agency, dt, geom in cur.fetchall()]))
         cur.close()
