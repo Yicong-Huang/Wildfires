@@ -29,7 +29,7 @@ class TextClassification(Runnable):
 
             # loop required text in database
             for id, text in Connection().sql_execute(
-                    "select id, text from records where (label2=0 or label2=1) and label1 is null"):
+                    "select id, text from records where (label1 is not null or label2 is not null) and text_cnn_wildfire_prob is null"):
                 # preprocess the text
                 text = text.encode('ascii', 'ignore').decode('ascii').strip().replace('\n', '. ')
                 # get prediction result of text, tuple example: tensor([[0.8321, 0.1679]])
@@ -37,7 +37,7 @@ class TextClassification(Runnable):
                 # dump prediction result into database
                 text_dumper.insert(id, prediction_tuple[0][0].item(), prediction_tuple[0][1].item())
                 logger.info("id " + str(id) + " is done!")
-            logger.info("Total affected records: " + str(text_dumper.inserted_count))
+                logger.info("Total affected records: " + str(text_dumper.inserted_count))
         except Exception:
             logger.error('error: ' + traceback.format_exc())
 
