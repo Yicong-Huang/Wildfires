@@ -44,3 +44,4 @@ IMAGE_TRAIN_PATH = os.path.join(ROOT_DIR, 'data/image_dataset/train')
 
 IMAGE_VAL_PATH = os.path.join(ROOT_DIR, 'data/image_dataset/val')
 
+FIRE_LABEL_PATH = os.path.join(ROOT_DIR, 'backend', 'data', 'fire_labels')
