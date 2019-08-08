@@ -49,6 +49,21 @@ export class MapService {
         }));
     }
 
+    getFirePolygonData(northEastBoundaries, southWestBoundaries, setSize, start, end): Observable<any> {
+        console.log('here in service');
+        return this.http.post('http://127.0.0.1:5000/data/firePolygon', JSON.stringify({
+            northEast: northEastBoundaries,
+            southWest: southWestBoundaries,
+            size: setSize,
+            // date: '2019-08-04',
+            startdate: start,
+            enddate: end,
+        })).pipe(map(data => {
+            console.log('given data', data);
+            return {type: 'FeatureCollection', features: data};
+        }));
+    }
+
     getDropBox(userInput): Observable<DropBoxItem[]> {
         // gets auto-completion suggestions
 

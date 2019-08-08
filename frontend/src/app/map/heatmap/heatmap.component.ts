@@ -10,7 +10,6 @@ import {FireTweetLayer} from '../layers/FireTweetLayer';
 import {WindLayer} from '../layers/WindLayer';
 import {FireEventLayer} from '../layers/FireEventLayer';
 import {Subject} from 'rxjs';
-import {Boundary} from '../../models/boundary.model';
 
 
 declare let L;
@@ -34,6 +33,7 @@ export class HeatmapComponent implements OnInit {
     private fireTweetLayer;
     private windLayer;
     private fireEventLayer;
+    private firepolygon;
 
     // Set up for a range and each smaller interval of temp to give specific color layers
     private tempLayers = [];
@@ -108,7 +108,8 @@ export class HeatmapComponent implements OnInit {
 
 
         // Add event Listener when user specify a time range on time series
-        $(window).on('timeRangeChange', this.timeRangeChangeHandler);
+        // $(window).on('timeRangeChange', this.timeRangeChangeHandler);
+        $(window).on('timeRangeChange', this.timeRangeChangeFirePolygonHandler);
 
         // Send temp range selected from service
         this.mapService.temperatureChangeEvent.subscribe(this.rangeSelectHandler);
@@ -139,13 +140,11 @@ export class HeatmapComponent implements OnInit {
             showCountyLevel = true;
             showStateLevel = true;
         }
-
-
         this.mapService.getBoundaryData(showStateLevel, showCountyLevel, showCityLevel, boundNE, boundSW)
             .subscribe(this.getBoundaryScreenDataHandler);
-    }
+    };
 
-    getBoundaryScreenDataHandler = (data: Boundary) => {
+    getBoundaryScreenDataHandler = (data) => {
         // adds boundary layer onto the map
         if (!this.map.hasLayer(this.geojsonLayer) && this.geojsonLayer) {
             return;
@@ -163,18 +162,93 @@ export class HeatmapComponent implements OnInit {
 
         this.mainControl.addOverlay(this.geojsonLayer, 'Boundary');
         this.map.addLayer(this.geojsonLayer);
-    }
+        this.geojsonLayer.setZIndex(100);
+    };
 
+
+    liveTweetSwitchHandler = () => {
+        if (this.switchStatus) {
+            this.liveTweetLayer.clearLayers();
+            this.mapService.stopLiveTweet();
+            this.switchStatus = false;
+            return;
+        }
+        this.mapService.getLiveTweetData().subscribe(this.liveTweetDataHandler);
+        this.switchStatus = true;
+    };
+
+    liveTweetDataHandler = (data) => {
+        this.liveTweetMarkers = L.TileLayer.maskCanvas({
+            radius: 10,
+            useAbsoluteRadius: true,
+            color: '#000',
+            opacity: 1,
+            noMask: true,
+            lineColor: '#e25822'
+        });
+
+        // Mockup Data for liveTweetLayer
+        const birdIcon = L.icon({
+            iconUrl: 'assets/image/perfectBird.gif',
+            iconSize: [20, 20]
+        });
+
+        const birdCoordinates = [];
+
+        data.data.forEach((tweet) => {
+            if (!this.liveTweetIdSet.has(tweet.id)) {
+                const point = [tweet.lat, tweet.long];
+                birdCoordinates.push([tweet.lat, tweet.long]);
+                const marker = L.marker(point, {icon: birdIcon}).bindPopup('I am a live tweet');
+                this.liveTweetBird.push(marker);
+                this.liveTweetIdSet.add(tweet.id);
+            }
+        });
+
+        this.liveTweetLayer = L.layerGroup(this.liveTweetBird);
+        this.liveTweetLayer.addTo(this.map);
+
+
+        this.liveTweetMarkers.setData(birdCoordinates);
+        const birds = $('.leaflet-marker-icon');
+        window.setTimeout(() => {
+            this.liveTweetBird = [];
+            this.liveTweetLayer.clearLayers();
+            this.liveTweetLayer.addLayer(this.liveTweetMarkers);
+        }, 3200);
+        let bird: any = 0;
+        for (bird of birds) {
+            if (bird.src.indexOf('perfectBird') !== -1) {
+                $(bird).css('animation', 'fly 3s linear');
+            }
+        }
+    };
 
     timeRangeChangeHandler = (event, data) => {
         const tempData = [];
         this.tweetData.forEach(entry => {
+
             if (entry[2] > data.timebarStart && entry[2] < data.timebarEnd) {
                 tempData.push([entry[0], entry[1]]);
             }
         });
         this.tweetLayer.setData(tempData);
-    }
+    };
+    // FIXME: not sure what this function is for, but shows error of undefined reference
+
+    timeRangeChangeFirePolygonHandler = (event, data) => {
+        console.log('series, event', data);
+        console.log('series, data', data);
+        const dateStartInISO = new Date(data['timebarStart']);
+
+        const dateEndInISO = new Date(data['timebarEnd']);
+
+        console.log('series, data1', dateStartInISO);
+        console.log('series, data2', dateEndInISO);
+
+        this.getFirePolygon(dateStartInISO, dateEndInISO);
+
+    };
 
     heatmapDataHandler = (data) => {
         // use heatmapOverlay from leaflet-heatmap
@@ -211,7 +285,7 @@ export class HeatmapComponent implements OnInit {
         const heatmapLayer = new HeatmapOverlay(heatmapConfig);
         heatmapLayer.setData({max: 680, data});
         this.mainControl.addOverlay(heatmapLayer, 'Temp heatmap');
-    }
+    };
 
     dotMapDataHandler = (data) => {
         const latLongBins = [];
@@ -238,7 +312,7 @@ export class HeatmapComponent implements OnInit {
             this.tempLayer.setData(latLongBins[i]);
             this.tempLayers.push(this.tempLayer);
         }
-    }
+    };
 
 
     rangeSelectHandler = (event) => {
@@ -282,7 +356,7 @@ export class HeatmapComponent implements OnInit {
         for (const region of this.tempRegionsMax) {
             region.addTo(this.map);
         }
-    }
+    };
 
     boundaryDataHandler = ([[data], value]) => {
         console.log(data);
@@ -312,7 +386,41 @@ export class HeatmapComponent implements OnInit {
             this.setLabelStyle(this.theSearchMarker); // sets the label style
 
         }
-    }
+    };
+    getFirePolygon = (start, end) => {
+        console.log('here in get fire poly');
+        const size = 3;
+        // TODO: replace polygon with fire icon in some conditions
+        const bound = this.map.getBounds();
+        const boundNE = {lat: bound._northEast.lat, lon: bound._northEast.lng};
+        const boundSW = {lat: bound._southWest.lat, lon: bound._southWest.lng};
+        console.log('latlng', boundSW);
+        this.mapService.getFirePolygonData(boundNE, boundSW, size, start, end).subscribe(this.firePolygonDataHandler);
+    };
+
+    firePolygonDataHandler = (data) => {
+        console.log('here in fire handler');
+        if (!this.map.hasLayer(this.firepolygon) && this.firepolygon) {
+            return;
+        }
+
+        if (this.firepolygon) {
+            this.map.removeLayer(this.firepolygon);
+            this.mainControl.removeLayer(this.firepolygon);
+        }
+
+        this.firepolygon = L.geoJson(data, {
+            style: this.style,
+            onEachFeature: this.onEachFeature
+        });
+
+        console.log('here creating fire');
+        this.mainControl.addOverlay(this.firepolygon, 'Fire polygon');
+        this.map.addLayer(this.firepolygon);
+        this.firepolygon.setZIndex(300);
+
+    };
+
     setLabelStyle = (marker) => {
         // sets the name label style
         marker.getElement().style.backgroundColor = 'transparent';
@@ -320,7 +428,7 @@ export class HeatmapComponent implements OnInit {
         marker.getElement().style.fontFamily = 'monospace';
         marker.getElement().style.webkitTextStroke = '#ffe710';
         marker.getElement().style.webkitTextStrokeWidth = '0.5px';
-    }
+    };
 
 
     resetHighlight = (event) => {
@@ -331,14 +439,19 @@ export class HeatmapComponent implements OnInit {
         if (this.theSearchMarker) {
             this.map.removeControl(this.theSearchMarker);
         }
-        this.geojsonLayer.resetStyle(event.target);
-    }
+        if (this.geojsonLayer) {
+            this.geojsonLayer.resetStyle(event.target);
+        }
+        if (this.firepolygon) {
+            this.firepolygon.resetStyle(event.target);
+        }
+    };
 
     zoomToFeature = (event) => {
         // zooms to a region when the region is clicked
         this.map.fitBounds(event.target.getBounds());
 
-    }
+    };
     getPolygonCenter = (coordinateArr) => {
         // gets the center point when given a coordinate array
         // OPTIMIZE: the get polygon center function
@@ -349,7 +462,7 @@ export class HeatmapComponent implements OnInit {
         const minY = Math.min.apply(null, y);
         const maxY = Math.max.apply(null, y);
         return [(minX + maxX) / 2, (minY + maxY) / 2];
-    }
+    };
     getColor = (density) => {
         // color for the boundary layers
         // TODO: remove this func
@@ -372,18 +485,18 @@ export class HeatmapComponent implements OnInit {
                 return '#FFEDA0';
         }
 
-    }
+    };
     style = (feature) => {
         // style for the boundary layers
         return {
             fillColor: this.getColor(feature.properties.density),
             weight: 2,
-            opacity: 0.8,
+            opacity: 0.1,
             color: 'white',
             dashArray: '3',
             fillOpacity: 0.3
         };
-    }
+    };
 
     highlightFeature = (event) => {
         // highlights the region when the mouse moves over the region
@@ -412,7 +525,7 @@ export class HeatmapComponent implements OnInit {
             ._northEast.lat - 15, this.map.getBounds()._northEast.lng - 60]), {icon: divIcon}).addTo(this.map);
         this.setLabelStyle(this.theHighlightMarker);
         this.setLabelStyle(this.theSearchMarker);
-    }
+    };
 
     onEachFeature = (feature, layer) => {
         // controls the interaction between the mouse and the map
@@ -421,6 +534,6 @@ export class HeatmapComponent implements OnInit {
             mouseout: this.resetHighlight,
             click: this.zoomToFeature
         });
-    }
+    };
 
 }
