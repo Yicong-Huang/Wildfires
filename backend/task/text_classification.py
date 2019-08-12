@@ -28,15 +28,16 @@ class TextClassification(Runnable):
             text_dumper = TextClassificationDumper()
 
             # loop required text in database
-            for id, text in Connection().sql_execute(
-                    "select id, text from records where (label1 is not null or label2 is not null) and text_cnn_wildfire_prob is null"):
+            for tweet_id, text in Connection().sql_execute(
+                    "select id, text from records where (label1 is not null or label2 is not null) "
+                    "and text_cnn_wildfire_prob is null"):
                 # preprocess the text
-                text = text.encode('ascii', 'ignore').decode('ascii').strip().replace('\n', '. ')
+                processed_text = text_classifier.preprocess(text)
                 # get prediction result of text, tuple example: tensor([[0.8321, 0.1679]])
-                prediction_tuple = text_classifier.predict(text)
+                prediction_tuple = text_classifier.predict(processed_text)
                 # dump prediction result into database
-                text_dumper.insert(id, prediction_tuple[0][0].item(), prediction_tuple[0][1].item())
-                logger.info("id " + str(id) + " is done!")
+                text_dumper.insert(tweet_id, prediction_tuple[0][0].item(), prediction_tuple[0][1].item())
+                logger.info("id " + str(tweet_id) + " is done!")
                 logger.info("Total affected records: " + str(text_dumper.inserted_count))
         except Exception:
             logger.error('error: ' + traceback.format_exc())

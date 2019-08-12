@@ -14,6 +14,7 @@ from backend.models.cnn_text import CNN_Text
 
 class TextClassifier(ClassifierBase):
     def __init__(self):
+        super().__init__()
         gensim_model = KeyedVectors.load_word2vec_format(GOOGLE_VOCAB_PATH, binary=True)
         self.vocab = gensim_model.vocab
         vocab_len = len(self.vocab)
@@ -36,7 +37,8 @@ class TextClassifier(ClassifierBase):
         results = self.model(text_feature_padding)
         return results
 
-    def handle_args(self):
+    @staticmethod
+    def handle_args():
         parser = argparse.ArgumentParser(description='CNN twitter classifier')
         # learning
         parser.add_argument('-lr', type=float, default=0.001, help='initial learning rate [default: 0.001]')
@@ -91,19 +93,23 @@ class TextClassifier(ClassifierBase):
         parser.add_argument('-pos-weight', type=float, default=1.0, help='the pos class penalty')
 
         args = parser.parse_args()
-        args.cuda = (not args.no_cuda) and torch.cuda.is_available();
+        args.cuda = (not args.no_cuda) and torch.cuda.is_available()
         del args.no_cuda
         return args
+
+    @staticmethod
+    def preprocess(text: str) -> str:
+        return text.encode('ascii', 'ignore').decode('ascii').strip().replace('\n', '. ')
 
 
 if __name__ == '__main__':
     # set up an text classifier
-    text_cls = TextClassifier()
+    text_classifier = TextClassifier()
 
     # use the pre-trained model
-    text_cls.set_model(TEXT_CNN_MODEL_PATH)
+    text_classifier.set_model(TEXT_CNN_MODEL_PATH)
 
     # give a tweet text example and test with it, to see the probability that it is wildfire related
-    a = 'I saw a wild fire'
-    a = a.encode('ascii', 'ignore').decode('ascii').strip().replace('\n', '. ')
-    print(text_cls.predict(a))
+    test_str = 'I saw a wild fire'
+
+    print(text_classifier.predict(text_classifier.preprocess(test_str)))
