@@ -85,6 +85,7 @@ export class TimeSeriesComponent implements OnInit {
                             });
                             this.currentDateInISO = dateInISO;
                             this.hasPlotBand = true;
+                            this.timeService.setCurrentDate(dateInISO);
                         } else if (dateInISO !== this.currentDateInISO) {
                             timeseries.xAxis[0].removePlotBand('plotBand');
                             timeseries.xAxis[0].addPlotBand({
@@ -95,10 +96,13 @@ export class TimeSeriesComponent implements OnInit {
                             });
                             this.currentDateInISO = dateInISO;
                             this.hasPlotBand = true;
+                            this.timeService.setCurrentDate(dateInISO);
                         } else {
                             timeseries.xAxis[0].removePlotBand('plotBand');
                             this.currentDateInISO = null;
                             this.hasPlotBand = false;
+                            this.timeService.setCurrentDate(null);
+
                         }
 
                     },
