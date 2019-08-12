@@ -147,7 +147,41 @@ def points_in_us(pnts: List[Dict[str, float]], accuracy=0.001):
         return result
 
 
-# @bp.route("/fire", methods=['POST'])
+@bp.route("/firePolygon", methods=['POST'])
+def fire():
+    # return a json of all fire name, fire time, and fire geometry inside the bounding box
+    request_json = flask_request.get_json(force=True)
+    north = request_json['northEast']['lat']
+    east = request_json['northEast']['lon']
+    south = request_json['southWest']['lat']
+    west = request_json['southWest']['lon']
+    size = request_json['size']
+    if_merge_timeline = request_json['merge']
+    start_date = request_json['startDate'][:10]
+    end_date = request_json['endDate'][:10]
+    if if_merge_timeline == 1:
+        size_getters = {"full_resolution": "agg_fire_geom_full", "large_resolution": "agg_fire_geom_1e4", "medium_resolution": "agg_fire_geom_1e3", "small_resolution": "agg_fire_geom_1e2",
+                        "point_resolution": "get_center"}
+    else:
+        size_getters = {"full_resolution": "get_fire_geom_full", "large_resolution": "get_fire_geom_1e4", "medium_resolution": "get_fire_geom_1e3", "small_resolution": "get_fire_geom_1e2",
+                        "point_resolution": "get_center"}
+    poly = 'polygon(({0} {1}, {0} {2}, {3} {2}, {3} {1}, {0} {1}))'.format(east, south, north, west)
+    query = f"SELECT * from {size_getters[size]}('{poly}','{start_date}','{end_date}') "
+    if if_merge_timeline == 1:
+        resp = make_response(jsonify([{"type": "Feature",
+                                       "id": "01",
+                                       "properties": {"name": name, "agency": agency, "start_time": dt_start, "density": 520, "end_time": dt_end},
+                                       "geometry": json.loads(geom)}
+                                      for name, agency, geom, dt_start, dt_end in Connection.sql_execute(query)]))
+    else:
+        resp = make_response(jsonify([{"type": "Feature",
+                                       "id": "01",
+                                       "properties": {"name": name, "agency": agency, "datetime": dt, "density": 520},
+                                       "geometry": json.loads(geom)}
+                                      for name, agency, dt, geom in Connection.sql_execute(query)]))
+    return resp
+
+# @bp.route("/firePolygon", methods=['POST'])
 # def fire():
 #     # return a json of all firename, firetime, and fire geometry inside the bounding box
 #     request_json = flask_request.get_json(force=True)
@@ -156,42 +190,19 @@ def points_in_us(pnts: List[Dict[str, float]], accuracy=0.001):
 #     south = request_json['southWest']['lat']
 #     west = request_json['southWest']['lon']
 #     size = request_json['size']
+#     startdate = request_json['startdate'][:10]
+#     enddate = request_json['enddate'][:10]
 #     size_dict = {0: "get_fire_geom_full", 1: "get_fire_geom_1e4", 2: "get_fire_geom_1e3", 3: "get_fire_geom_1e2", 4:"get_center"}
 #     poly = 'polygon(({0} {1}, {0} {2}, {3} {2}, {3} {1}, {0} {1}))'.format(east, south, north, west)
 #     size = size_dict[size]
-#     query = "SELECT * from {}('{}')".format(size, poly)
+#     query = f"SELECT * from {size}('{poly}','{startdate}','{enddate}') "
+#     print(query)
 #     with Connection() as conn:
 #         cur = conn.cursor()
 #         cur.execute(query)
 #         resp = make_response(
-#             jsonify([{"type": "Feature", "id": "01", "properties": {"name": name, "agency": agency, "datetime": dt}, "geometry": json.loads(geom)} for name, agency, dt, geom in cur.fetchall()])
+#             jsonify([{"type": "Feature", "id": "01", "properties": {"name": name, "agency": agency, "datetime": dt, "density": 520}, "geometry": json.loads(geom)} for name, agency, dt, geom in cur.fetchall()])
 #         )
 #             # jsonify([{"name": name, "agency": agency, "datetime": dt, "geom": geom} for name, agency, dt, geom in cur.fetchall()]))
 #         cur.close()
 #     return resp
-
-@bp.route("/fire", methods=['POST'])
-def fire():
-    # return a json of all firename, firetime, and fire geometry inside the bounding box
-    request_json = flask_request.get_json(force=True)
-    north = request_json['northEast']['lat']
-    east = request_json['northEast']['lon']
-    south = request_json['southWest']['lat']
-    west = request_json['southWest']['lon']
-    size = request_json['size']
-    startdate = request_json['startdate'][:10]
-    enddate = request_json['enddate'][:10]
-    size_dict = {0: "get_fire_geom_full", 1: "get_fire_geom_1e4", 2: "get_fire_geom_1e3", 3: "get_fire_geom_1e2", 4:"get_center"}
-    poly = 'polygon(({0} {1}, {0} {2}, {3} {2}, {3} {1}, {0} {1}))'.format(east, south, north, west)
-    size = size_dict[size]
-    query = f"SELECT * from {size}('{poly}','{startdate}','{enddate}') "
-    print(query)
-    with Connection() as conn:
-        cur = conn.cursor()
-        cur.execute(query)
-        resp = make_response(
-            jsonify([{"type": "Feature", "id": "01", "properties": {"name": name, "agency": agency, "datetime": dt, "density": 520}, "geometry": json.loads(geom)} for name, agency, dt, geom in cur.fetchall()])
-        )
-            # jsonify([{"name": name, "agency": agency, "datetime": dt, "geom": geom} for name, agency, dt, geom in cur.fetchall()]))
-        cur.close()
-    return resp
