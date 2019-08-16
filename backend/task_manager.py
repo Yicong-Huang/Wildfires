@@ -1,4 +1,6 @@
 import ctypes
+import glob
+import importlib
 import inspect
 import json
 import logging.config
@@ -14,16 +16,12 @@ import rootpath
 rootpath.append()
 from paths import LOG_DIR, LOG_CONFIG_PATH
 
+
 # don't delete these imports because they're called implicitly
-exec("from backend.task import *")
+# exec("from backend.task import *")
 
 
 class Task:
-    """
-    This class defines a task, including the name of it and the function it provides
-    the number indicates how many tasks of this kind have been run before
-    """
-
     def __init__(self, task_name: str, task_func: Callable, task_number: int):
         self.task_name = task_name
         self.task_func = task_func
@@ -31,11 +29,6 @@ class Task:
 
 
 class RunningThread:
-    """
-    This class defines a running thread, including the thread object and the name of it
-    'loop' means whether this thread is running in a loop or not
-    """
-
     def __init__(self, th, th_name, loop):
         self.th = th
         self.th_name = th_name
@@ -43,44 +36,53 @@ class RunningThread:
 
 
 class TaskManager:
-    """
-    TM (TaskManager)
-    This class handles very simple thread operations:
-        Reading available tasks from the folder and providing options for user to choose
-        Creating single-shot threads -> TM.run(...)
-        Creating 'looping per interval' threads -> TM.run(...) with loop set to True
-        Joins all the threads together into the calling thread -> TM.join_all()
-        Stopping threads based on name -> TM.stop_thread(...)
-        Removing stopped threads from 'running_threads' - > TM.free_dead()
+    """ThM (ThreadManager)
+    Handles very simple thread operations:
+        Creating single-shot threads -> ThM.run(...)
+        Creating 'looping per interval' threads -> ThM.run(...) with loop set to True
+        Stopping looping threads based on name -> ThM.stop_loop(...)
+        Joining all threads into the calling thread ThM.joinall()
+        Removing stopped threads from 'running_threads' - > ThM.free_dead()
+
 
     The class has been designed for very simple operations, mainly
-    for programs that need "workers" that mindlessly loop over a function
+    for programs that need "workers" that mindlessly loop over a function.
 
     NOTE: Locks,Events,Semaphores etc. have not been taken into consideration
     and may cause unexpected behaviour if used!
-    """
+     """
 
     exec("from backend.task.runnable import Runnable")
     running_threads: List[RunningThread] = list()
     task_options = dict()
-    # use 'Runnable' as parent class' name and get all the subclasses' names
-    for i, sub_cls in enumerate(vars()['Runnable'].__subclasses__()):
-        task_options[i + 1] = Task(sub_cls.__name__, sub_cls().run, 1)
     task_option_id = 1
 
     TASK_MODE = 0
     KILL_MODE = 1
     QUIT_MODE = 2
+    RELOAD_MODE = 3
+
+    @classmethod
+    def load_runnables(cls):
+        exec("from backend.task.runnable import Runnable")
+        task_dir = os.path.join(os.path.realpath(__file__), '..', 'task')
+        tasks = [os.path.split(file)[-1].strip(".py").strip("./") for file in
+                 glob.glob(os.path.join(task_dir, './*.py'))]
+
+        TaskManager.task_options = dict()
+        for t in tasks:
+            importlib.import_module(f'task.{t}')
+        # use 'Runnable' as parent class' name and get all the subclasses' names
+        for i, sub_cls in enumerate(vars()['Runnable'].__subclasses__()):
+            cls.task_options[i + 1] = Task(sub_cls.__name__, sub_cls().run, 1)
 
     def __init__(self):
         self.quit_flag: bool = False
         self.kill_thread_flag: bool = False
+        TaskManager.load_runnables()
 
     @staticmethod
     def initialize_logger() -> Logger:
-        """
-        :return: initialized logger for the task manager
-        """
         with open(LOG_CONFIG_PATH, 'r') as file:
             # create path to save logs
             if not os.path.exists(LOG_DIR):
@@ -94,7 +96,7 @@ class TaskManager:
             date_format = '%m/%d/%Y-%H:%M:%S'
             formatter = logging.Formatter(fmt=info_format, datefmt=date_format)
             handler_names = ['info.log', 'error.log']
-            current_time = time.strftime('%m%d%Y_%H:%M:%S_', time.localtime(time.time()))
+            current_time = time.strftime('%m%d%Y_%H-%M-%S_', time.localtime(time.time()))
             for handler_name in handler_names:
                 file_name = os.path.join(LOG_DIR, current_time + handler_name)
                 # create log file in advance
@@ -130,7 +132,7 @@ class TaskManager:
     @classmethod
     def task_option_to_string(cls) -> str:
         """
-        :return: formatted tasks in the current task option dictionary
+        :return: formated tasks in the current task option dictionary
         """
         to_return = ""
         task_template = " [%d]: %s-%d \n"
@@ -140,9 +142,8 @@ class TaskManager:
         return to_return
 
     @classmethod
-    def run(cls, task_option_id, loop, interval, args=None) -> None:
+    def run(cls, task_option_id, loop, interval, args=None):
         """
-        Starting a thread to run a selected task, the exception will be caught in `run_a_task()`
         :param task_option_id: task id for task in the task option list
         :param loop:  determine is this is a looped task
         :param interval: time between each execution of the looped task
@@ -162,18 +163,15 @@ class TaskManager:
         th.start()
 
     @classmethod
-    def free_dead(cls) -> None:
+    def free_dead(cls):
         """Removes all threads that return FALSE on isAlive() from the running_threads list """
         for running_th in cls.running_threads[:]:
             if not running_th.th.isAlive():
                 cls.running_threads.remove(running_th)
 
     @classmethod
-    def stop_thread(cls, thread_name) -> None:
-        """
-        Stops a function that was started with TM.run(...)
-        the exception will be caught in kill_a_thread()
-        """
+    def stop_thread(cls, thread_name):
+        """Stops a looping function that was started with ThM.run(...)"""
         for i, thlis in enumerate(cls.running_threads):
             if thlis.th_name == thread_name:
                 exc = ctypes.py_object(SystemExit)
@@ -189,16 +187,16 @@ class TaskManager:
                 break
 
     @classmethod
-    def join_all(cls) -> None:
-        """Joins all the threads together into the calling thread"""
+    def join_all(cls):
+        """Joins all the threads together into the calling thread."""
         for running_th in cls.running_threads[:]:
             while running_th.th.isAlive():
                 time.sleep(0.1)
             running_th.th.join()
 
-    # This method is only intended for threads started with TM !
+    # This method is only intended for threads started with ThM !
     @classmethod
-    def _thread_runner_(cls, target_func, th_name, interval, args) -> None:
+    def _thread_runner_(cls, target_func, th_name, interval, args):
         """Internal function handling the running and looping of the threads
         Note: threading.Event() has not been taken into consideration and neither the
         other thread managing objects (semaphores, locks, etc.)"""
@@ -236,11 +234,8 @@ class TaskManager:
         except:
             logger.error("error: " + traceback.format_exc())
 
-    def pass_arguments(self, task_prompt) -> list:
-        """
-        Get function run()'s arguments and let user to enter the arguments, then return the argument list args
-        the exception will be caught in run_a_task()
-        """
+    def pass_arguments(self, task_prompt):
+        """get function run()'s arguments and let user to enter the arguments, then return the argument list args"""
         args = []
         arg_spec = inspect.getfullargspec(self.task_options[task_prompt].task_func)
         arguments = arg_spec.args
@@ -267,17 +262,14 @@ class TaskManager:
                 args.append(converted_arg)
         return args
 
-    def main_loop(self) -> None:
-        """
-        The main function to run the task manager
-        the exception will be caught in the main()
-        """
+    def main_loop(self):
         print("#" * 80)
         print("#" + "".center(78, " ") + "#")
         print("#" + "".center(78, " ") + "#")
         print("#" + "Welcome to wildfire Task Manager".center(78, " ") + "#")
-        print("#" + "Version 1.0".center(78, " ") + "#")
-        print("#" + "Credit to Unicorn, Tingxuan Gu, Yichi Zhang".center(78, " ") + "#")
+        print("#" + "Update: Bind task options to task_manager class".center(78, " ") + "#")
+        print("#" + "Version 0.2".center(78, " ") + "#")
+        print("#" + "Credit to Unicorn".center(78, " ") + "#")
         print("#" + "".center(78, " ") + "#")
         print("#" + "".center(78, " ") + "#")
         print("#" * 80)
@@ -291,15 +283,14 @@ class TaskManager:
             elif task_mode == TaskManager.QUIT_MODE:
                 print("bye bye")
                 break
+            elif task_mode == TaskManager.RELOAD_MODE:
+
+                TaskManager.load_runnables()
+                continue
             else:
                 self.run_a_task(selected_task)
 
-    def run_a_task(self, task_prompt) -> None:
-        """
-        the exception will be caught in main()
-        :param task_prompt: the id of the task that user wants to start
-        :return: None
-        """
+    def run_a_task(self, task_prompt):
         while True:
             loop_prompt = self.lower_case_prompt(
                 "Would you like to run task in a loop? yes/no ([y]/[n])  ([r] for selecting another task)\n")
@@ -326,17 +317,9 @@ class TaskManager:
 
     @staticmethod
     def lower_case_prompt(message: str) -> str:
-        """
-        Make the message into a lower case one
-        the exception will be caught in kill_a_thread() and task_selection()
-        """
         return input(message).strip().lower()
 
-    def kill_a_thread(self) -> None:
-        """
-        Provide the user with the running threads and user can choose one to kill
-        the exception will be caught in main()
-        """
+    def kill_a_thread(self):
         print("You have following tasks running: ")
         for i, thread in enumerate(self.running_threads):
             print(f"{i}: {thread.th_name}")
@@ -351,11 +334,6 @@ class TaskManager:
             print("Skipped, no task been terminated\n ")
 
     def task_selection(self) -> (int, int):
-        """
-        Provide user with choices and user can choose to run/kill a thread or quit the task manager
-        the exception will be caught in main()
-        :return: selected task's number(str/None), task mode(task, kill or quit)
-        """
         selected_task = None
         while not selected_task:
             print("You have following task running: ")
@@ -366,13 +344,15 @@ class TaskManager:
             try:
                 task_prompt = self.lower_case_prompt(
                     "\nWhich task would you like to run:\n" + self.task_option_to_string()
-                    + " [k]: kill a running thread\n [q]: QUIT\n")
+                    + " [k]: kill a running thread\n [q]: QUIT\n [r]: Reload\n")
                 if task_prompt == 'k':
                     return None, TaskManager.KILL_MODE
                 elif task_prompt == 'q':
                     if self.lower_case_prompt("Are you sure you want to quit? [Y/N]") not in ['y', 'yes']:
                         continue
                     return None, TaskManager.QUIT_MODE
+                elif task_prompt == 'r':
+                    return None, TaskManager.RELOAD_MODE
                 else:
                     selected_task = int(task_prompt)
                     # to test whether this is a legal task
@@ -385,9 +365,10 @@ class TaskManager:
 
 if __name__ == "__main__":
     logger = TaskManager.initialize_logger()
+    logger.addHandler(logging.StreamHandler())
     logger.info('Task manager is running now!')
     try:
         task_manager = TaskManager()
         task_manager.main_loop()
-    except:
+    except IOError:
         logger.error('Invalid Input Cause Error')
