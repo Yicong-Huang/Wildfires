@@ -171,6 +171,11 @@ export class HeatmapComponent implements OnInit {
         tempSubject.subscribe(this.heatmapDataHandler);
         this.mapService.getTemperatureData().subscribe(tempSubject);
 
+        // Get ppt data from service
+        const pptSubject = new Subject();
+        pptSubject.subscribe(this.ppt_heatmapDataHandler);
+        this.mapService.getPPTData().subscribe(pptSubject);
+
         // Get tweets data from service
         this.fireTweetLayer = new FireTweetLayer(this.mainControl, this.mapService, this.map);
 
@@ -273,6 +278,7 @@ export class HeatmapComponent implements OnInit {
 
 
     heatmapDataHandler = (data) => {
+        console.log(data);
         // use heatmapOverlay from leaflet-heatmap
         // Documentation for details in change of custom parameter
         // https://www.patrick-wied.at/static/heatmapjs/docs.html#heatmap-setData
@@ -307,6 +313,44 @@ export class HeatmapComponent implements OnInit {
         const heatmapLayer = new HeatmapOverlay(heatmapConfig);
         heatmapLayer.setData({max: 680, data});
         this.mainControl.addOverlay(heatmapLayer, 'Temp heatmap');
+    };
+
+    ppt_heatmapDataHandler = (data) => {
+        console.log(data);
+        // use heatmapOverlay from leaflet-heatmap
+        // Documentation for details in change of custom parameter
+        // https://www.patrick-wied.at/static/heatmapjs/docs.html#heatmap-setData
+        const heatmapConfig = {
+            radius: 1,
+            maxOpacity: 0.63,
+            minOpacity: 0.2,
+            scaleRadius: true,
+            useLocalExtrema: false,
+            blur: 1,
+            latField: 'lat',
+            lngField: 'long',
+            valueField: 'temp',
+            // gradient is customized to match the color scales of temp plotting layers exactly the same
+            gradient: {
+                '.1': '#fdfeff',
+                '.2': '#ebf2f4',
+                '.3': '#d5e4e8',
+                '.4': '#cddde3',
+                '.5': '#a3c0d0',
+                '.55': '#96b8c7',
+                '.6': '#89afbc',
+                '.65': '#76a1b6',
+                '.7': '#6193a3',
+                '.75': '#4b829f',
+                '.8': '#3f7893',
+                '.85': '#37718e',
+                '.9': '#316e88',
+                '.99': '#2a6484',
+            }
+        };
+        const heatmapLayer = new HeatmapOverlay(heatmapConfig);
+        heatmapLayer.setData({max: 640, data});
+        this.mainControl.addOverlay(heatmapLayer, 'PPT heatmap');
     };
 
     dotMapDataHandler = (data) => {

@@ -232,6 +232,38 @@ def send_temperature_data():
     # sends temperature data with coordinate within us boundary
     return resp
 
+@bp.route("/ppt")
+def send_ppt_data():
+    # This sql gives the second lastest data for temperature within ractangle around US,
+    # since the most lastest data is always updating (not completed)
+    ppt_fetch = Connection().sql_execute( "select st_x(geom), st_y(geom), p.ppt from us_mesh m, prism p where p.gid = m.gid and p.date='2019-05-23'" )
+    print("done1!")
+    ppt_data = []  # format temp data into a dictionary structure
+
+    for row in ppt_fetch:
+        long = row[0]
+        lat = row[1]
+        ppt = row[2]
+
+        ppt_object = {
+            "lat": lat,
+            "long": long % (-360),  # convert longtitude range
+            "ppt": ppt,  # change temp into celsius
+        }
+
+        ppt_data.append(ppt_object)
+    print("done2!")
+
+    ppt_data_us = points_in_us(ppt_data)  # restrict data within US boundary.
+
+    print("done3!")
+    print(ppt_data_us)
+
+    resp = make_response(jsonify(ppt_data_us))
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    print("done4!")
+    # sends temperature data with coordinate within us boundary
+    return resp
 
 def points_in_us(pnts: List[Dict[str, float]], accuracy=0.001):
     """
