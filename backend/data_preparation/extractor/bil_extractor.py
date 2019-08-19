@@ -12,10 +12,11 @@ from backend.data_preparation.extractor.extractorbase import ExtractorBase
 logger = logging.getLogger('TaskManager')
 
 
-class BILFormat:
-    def __init__(self):
-        self.ndarray: np.ndarray = np.zeros(0)
-        self.unflattened: np.ndarray = np.zeros(0)
+#
+# class BILFormat:
+#     def __init__(self):
+#         self.ndarray: np.ndarray = np.zeros(0)
+#         self.unflattened: np.ndarray = np.zeros(0)
 
 
 class BILExtractor(ExtractorBase):
@@ -27,7 +28,7 @@ class BILExtractor(ExtractorBase):
     CROP_LEFT = 14
     CROP_RIGHT = 262
 
-    def extract(self, filepath) -> Optional[BILFormat]:
+    def extract(self, filepath) -> Optional[np.ndarray]:
         # extract files
         try:
             filename = os.path.basename(filepath)
@@ -39,7 +40,7 @@ class BILExtractor(ExtractorBase):
             bil_path = os.path.join(os.path.split(filepath)[0], os.path.splitext(filename)[0] + '.bil')
 
             # read header and BIL
-            bil: BILFormat = BILExtractor.read_prism_bil(header_path, bil_path)
+            bil: np.ndarray = BILExtractor.read_prism_bil(header_path, bil_path)
 
             # clean up
             os.remove(header_path)
@@ -55,7 +56,7 @@ class BILExtractor(ExtractorBase):
         pass
 
     @staticmethod
-    def read_prism_bil(hdr_path, bil_path) -> BILFormat:
+    def read_prism_bil(hdr_path, bil_path) -> np.ndarray:
         """Read an array from ESRI BIL raster file"""
         hdr_dict = BILExtractor.read_prism_hdr(hdr_path)
         # For now, only use NROWS, NCOLS, and NODATA
@@ -68,11 +69,11 @@ class BILExtractor(ExtractorBase):
         # replace -9999 with np.nan
         prism_array[prism_array == float(hdr_dict['NODATA'])] = np.nan
 
-        bil = BILFormat()
-        bil.ndarray = prism_array[BILExtractor.CROP_TOP:BILExtractor.CROP_BOTTOM,
-                      BILExtractor.CROP_LEFT:BILExtractor.CROP_RIGHT]
-        bil.unflattened = prism_array
-        return bil
+        # bil = BILFormat()
+        # bil.ndarray = prism_array[BILExtractor.CROP_TOP:BILExtractor.CROP_BOTTOM,
+        #               BILExtractor.CROP_LEFT:BILExtractor.CROP_RIGHT]
+        # bil.unflattened = prism_array
+        return prism_array
 
     @staticmethod
     def read_prism_hdr(hdr_path: str):
