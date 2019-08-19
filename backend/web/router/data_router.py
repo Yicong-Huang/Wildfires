@@ -244,6 +244,8 @@ def send_ppt_data():
         long = row[0]
         lat = row[1]
         ppt = row[2]
+        if ppt == np.float('NaN'):
+            ppt = -9999
 
         ppt_object = {
             "lat": lat,
@@ -257,7 +259,6 @@ def send_ppt_data():
     ppt_data_us = points_in_us(ppt_data)  # restrict data within US boundary.
 
     print("done3!")
-    print(ppt_data_us)
 
     resp = make_response(jsonify(ppt_data_us))
     resp.headers['Access-Control-Allow-Origin'] = '*'
