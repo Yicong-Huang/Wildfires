@@ -43,5 +43,7 @@ class TextClassification(Runnable):
 
 
 if __name__ == '__main__':
+    logger.setLevel(logging.INFO)
+    logger.addHandler(logging.StreamHandler())
     text_classification = TextClassification()
     text_classification.run()
