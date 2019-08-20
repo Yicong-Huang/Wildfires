@@ -68,6 +68,10 @@ export class MapService {
         return this.http.get<HeatMap[]>('http://127.0.0.1:5000/data/ppt');
     }
 
+    getRiskMapData(): Observable<HeatMap[]> {
+        return this.http.get<HeatMap[]>('http://127.0.0.1:5000/data/riskmap');
+    }
+
     getClickData(lat, lng, radius, timestamp, range): Observable<any> {
 
         return this.http.post('http://127.0.0.1:5000/data/aggregation', JSON.stringify({

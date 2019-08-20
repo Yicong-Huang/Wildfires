@@ -12,7 +12,7 @@ from flask import Blueprint, make_response, jsonify, send_from_directory, reques
 
 rootpath.append()
 from backend.data_preparation.connection import Connection
-from paths import BOUNDARY_PATH
+from paths import BOUNDARY_PATH, WEB_STATIC_RISK_MAP
 
 bp = Blueprint('data', __name__, url_prefix='/data')
 
@@ -232,39 +232,77 @@ def send_temperature_data():
     # sends temperature data with coordinate within us boundary
     return resp
 
-@bp.route("/ppt")
-def send_ppt_data():
+# @bp.route("/ppt")
+# def send_ppt_data():
+#     # This sql gives the second lastest data for temperature within ractangle around US,
+#     # since the most lastest data is always updating (not completed)
+#     ppt_fetch = Connection().sql_execute( "select st_x(geom), st_y(geom), p.ppt from us_mesh m, prism p where p.gid = m.gid and p.date='2019-05-23'" )
+#     print("done1!")
+#     ppt_data = []  # format temp data into a dictionary structure
+#
+#     for row in ppt_fetch:
+#         long = row[0]
+#         lat = row[1]
+#         ppt = row[2]
+#         if ppt == np.float('NaN'):
+#             ppt = -9999
+#
+#         ppt_object = {
+#             "lat": lat,
+#             "long": long % (-360),  # convert longtitude range
+#             "ppt": ppt,  # change temp into celsius
+#         }
+#
+#         ppt_data.append(ppt_object)
+#     print("done2!")
+#
+#     ppt_data_us = points_in_us(ppt_data)  # restrict data within US boundary.
+#
+#     print("done3!")
+#
+#     resp = make_response(jsonify(ppt_data_us))
+#     resp.headers['Access-Control-Allow-Origin'] = '*'
+#     print("done4!")
+#     # sends temperature data with coordinate within us boundary
+#     return resp
+
+@bp.route("/riskmap")
+def send_riskmap_data():
+    print("enter router")
     # This sql gives the second lastest data for temperature within ractangle around US,
     # since the most lastest data is always updating (not completed)
-    ppt_fetch = Connection().sql_execute( "select st_x(geom), st_y(geom), p.ppt from us_mesh m, prism p where p.gid = m.gid and p.date='2019-05-23'" )
-    print("done1!")
-    ppt_data = []  # format temp data into a dictionary structure
 
-    for row in ppt_fetch:
+    idx = 0
+    risk_map = np.load(os.path.join(WEB_STATIC_RISK_MAP, "risk_map_20180912.npy")).tolist()
+    risk_map_data = []
+
+    all_long_lat = []
+
+    for i in range(228):
+            long_lat_fetch = Connection().sql_execute( "select st_x(geom), st_y(geom) from us_mesh m where m.gid between {} and {}".format(266964+i*1405, 266964+i*1405+247) )
+
+            for row in long_lat_fetch:
+                all_long_lat.append(row)
+
+
+    # TODO:
+    for row in all_long_lat:
         long = row[0]
         lat = row[1]
-        ppt = row[2]
-        if ppt == np.float('NaN'):
-            ppt = -9999
-
-        ppt_object = {
-            "lat": lat,
-            "long": long % (-360),  # convert longtitude range
-            "ppt": ppt,  # change temp into celsius
-        }
-
-        ppt_data.append(ppt_object)
-    print("done2!")
-
-    ppt_data_us = points_in_us(ppt_data)  # restrict data within US boundary.
-
-    print("done3!")
-
-    resp = make_response(jsonify(ppt_data_us))
+        risk = risk_map[idx//248][idx%248]
+        idx+=1
+        risk_object = {
+                "lat": lat,
+                "long": long % (-360),  # convert longtitude range
+                "risk": risk,  # change temp into celsius
+            }
+        risk_map_data.append(risk_object)
+    riskmap_data_us = points_in_us(risk_map_data)
+    resp = make_response(jsonify(riskmap_data_us))
     resp.headers['Access-Control-Allow-Origin'] = '*'
-    print("done4!")
-    # sends temperature data with coordinate within us boundary
+    print("router done")
     return resp
+
 
 def points_in_us(pnts: List[Dict[str, float]], accuracy=0.001):
     """
