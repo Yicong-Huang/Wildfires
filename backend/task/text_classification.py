@@ -29,8 +29,7 @@ class TextClassification(Runnable):
 
             # loop required text in database
             for tweet_id, text in Connection().sql_execute(
-                    "select id, text from records where (label1 is not null or label2 is not null) "
-                    "and text_cnn_wildfire_prob is null"):
+                    "select id, text from records where text_cnn_wildfire_prob is null"):
                 # preprocess the text
                 processed_text = text_classifier.preprocess(text)
                 # get prediction result of text, tuple example: tensor([[0.8321, 0.1679]])
