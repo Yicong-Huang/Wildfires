@@ -58,7 +58,8 @@ def send_fire_tweet_data():
         jsonify([{"create_at": time.isoformat(), "long": lon, "lat": lat, "id": str(id)} for time, lon, lat, _, _, id in
                  Connection().sql_execute(
                      "select r.create_at, l.top_left_long, l.top_left_lat, l.bottom_right_long, l.bottom_right_lat, r.id "
-                     "from records r,locations l where r.id=l.id")]))
+                     "from  records r inner join images i  on r.id = i.id inner join locations l on r.id=l.id "
+                     "and (r.text_cnn_wildfire_prob >0.80 or i.wildfire_prob>0.80 or i.resnet_wildfire>0.80)")]))
     return resp
 
 
@@ -96,6 +97,7 @@ def region_tweet():
         where rec.create_at < TIMESTAMP '{timestamp}' -- UTC timezong
         -- returning PDT without timezong label
         and rec.create_at > TIMESTAMP '{timestamp}' - interval '{days} day'
+        and rec.text_cnn_wildfire_prob >0.9 and (rec.id in (select r.id from records r, images i where r.id = i.id and (i.wildfire_prob>0.9 or i.resnet_wildfire>0.9)))
     ) as rft,
     (
         SELECT id from locations loc,
