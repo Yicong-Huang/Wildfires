@@ -364,39 +364,45 @@ export class HeatmapComponent implements OnInit {
         // Documentation for details in change of custom parameter
         // https://www.patrick-wied.at/static/heatmapjs/docs.html#heatmap-setData
         const heatmapConfig = {
-            radius: 1,
-            maxOpacity: 0.63,
-            minOpacity: 0.2,
+            radius: 0.45,
+            maxOpacity: 0.8,
+            minOpacity: 0.1,
             scaleRadius: true,
             useLocalExtrema: false,
             blur: 1,
             latField: 'lat',
             lngField: 'long',
             valueField: 'risk',
-            // gradient is customized to match the color scales of temp plotting layers exactly the same
+
             gradient: {
-                '.1': '#fdfeff',
-                '.2': '#ebf2f4',
-                '.3': '#d5e4e8',
-                '.4': '#cddde3',
-                '.5': '#a3c0d0',
-                '.55': '#96b8c7',
-                '.6': '#89afbc',
-                '.65': '#76a1b6',
-                '.7': '#6193a3',
-                '.75': '#4b829f',
-                '.8': '#3f7893',
-                '.85': '#37718e',
-                '.9': '#316e88',
-                '.99': '#2a6484',
+                '.81': '#393fb8',
+                '.8125': '#4252B8',
+                '.815': '#3B60D6',
+                '.82': '#4D7FD6',
+                '.825': '#3b60d6',
+                '.826': '#5390D6',
+                '.827': '#5DA3D6',
+                '.829': '#58AED6',
+                '.8298': '#5AC4D6',
+                '.83': '#49ebd8',
+                '.8303': '#49eb8f',
+                '.831': '#a6e34b',
+                '.8325': '#f2de5a',
+                '.834': '#edbf18',
+                '.84': '#e89c20',
+                '.855': '#f27f02',
+                '.858': '#f25a02',
+                // '.87': '#f23a02',
+                '.88': '#f0077f',
+                '.90': '#f205c3',
+                '.933': '#9306ba',
             }
+
         };
         const heatmapLayer = new HeatmapOverlay(heatmapConfig);
-        heatmapLayer.setData({max: 300, data});
+        heatmapLayer.setData({max: 40, data});
         this.mainControl.addOverlay(heatmapLayer, 'RiskMap heatmap');
     };
-
-
 
     dotMapDataHandler = (data) => {
         const latLongBins = [];

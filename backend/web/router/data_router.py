@@ -272,31 +272,23 @@ def send_riskmap_data():
     # This sql gives the second lastest data for temperature within ractangle around US,
     # since the most lastest data is always updating (not completed)
 
-    idx = 0
     risk_map = np.load(os.path.join(WEB_STATIC_RISK_MAP, "risk_map_20180912.npy")).tolist()
     risk_map_data = []
 
-    all_long_lat = []
+    long_lat = np.load(os.path.join(WEB_STATIC_RISK_MAP, "long_lat.npy")).tolist()
 
-    for i in range(228):
-            long_lat_fetch = Connection().sql_execute( "select st_x(geom), st_y(geom) from us_mesh m where m.gid between {} and {}".format(266964+i*1405, 266964+i*1405+247) )
-
-            for row in long_lat_fetch:
-                all_long_lat.append(row)
-
-
-    # TODO:
-    for row in all_long_lat:
-        long = row[0]
-        lat = row[1]
-        risk = risk_map[idx//248][idx%248]
-        idx+=1
-        risk_object = {
+    for i in range(len(risk_map)):
+        for j in range(len(risk_map[i])):
+            risk = risk_map[i][j]
+            lat = long_lat[i][j][0]
+            long = long_lat[i][j][1]
+            risk_object = {
                 "lat": lat,
                 "long": long % (-360),  # convert longtitude range
                 "risk": risk,  # change temp into celsius
             }
-        risk_map_data.append(risk_object)
+            risk_map_data.append(risk_object)
+
     riskmap_data_us = points_in_us(risk_map_data)
     resp = make_response(jsonify(riskmap_data_us))
     resp.headers['Access-Control-Allow-Origin'] = '*'

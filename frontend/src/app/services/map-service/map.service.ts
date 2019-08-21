@@ -64,9 +64,9 @@ export class MapService {
         return this.http.get<HeatMap[]>('http://127.0.0.1:5000/data/recent-temp');
     }
 
-    getPPTData(): Observable<HeatMap[]> {
-        return this.http.get<HeatMap[]>('http://127.0.0.1:5000/data/ppt');
-    }
+    // getPPTData(): Observable<HeatMap[]> {
+    //     return this.http.get<HeatMap[]>('http://127.0.0.1:5000/data/ppt');
+    // }
 
     getRiskMapData(): Observable<HeatMap[]> {
         return this.http.get<HeatMap[]>('http://127.0.0.1:5000/data/riskmap');
