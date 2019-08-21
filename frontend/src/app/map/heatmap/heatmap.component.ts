@@ -365,7 +365,7 @@ export class HeatmapComponent implements OnInit {
         // https://www.patrick-wied.at/static/heatmapjs/docs.html#heatmap-setData
         const heatmapConfig = {
             radius: 0.45,
-            maxOpacity: 0.8,
+            maxOpacity: 0.6,
             minOpacity: 0.1,
             scaleRadius: true,
             useLocalExtrema: false,
