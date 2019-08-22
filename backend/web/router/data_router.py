@@ -1,10 +1,13 @@
 import json
 import os
-from typing import List, Dict
-import json
+
+from copy import deepcopy
+from datetime import timedelta, date
+from typing import List, Dict, Union, Tuple
 import matplotlib.path as mplPath
 import numpy as np
 import rootpath
+from dateutil import parser
 from flask import Blueprint, make_response, jsonify, send_from_directory, request as flask_request
 
 rootpath.append()
@@ -14,28 +17,191 @@ from paths import BOUNDARY_PATH
 bp = Blueprint('data', __name__, url_prefix='/data')
 
 
+def gen_date_series(days: int, timestamp_str: str) -> List[Tuple[date, None]]:
+    _date = parser.parse(timestamp_str).date() - timedelta(days=days - 1)
+    return [(_date + timedelta(days=i), None) for i in range(days)]
+
+
+def fill_series(date_series: List[Tuple[date, None]], fill: List[Tuple[date, Union[int, float, None]]]) \
+        -> List[Tuple[date, Union[int, float, None]]]:
+    # noinspection Mypy
+    result_series: List[Tuple[date, Union[int, float, None]]] = deepcopy(date_series)
+    for fill_date, value in fill:
+        for i, (tweet_date, _) in enumerate(result_series):
+            if tweet_date == fill_date:
+                result_series[i] = (tweet_date, value)
+                break
+    return result_series
+
+
 @bp.route("/aggregation", methods=['POST'])
 def aggregation():
     request_json = flask_request.get_json(force=True)
     lat = float(request_json['lat'])
     lng = float(request_json['lng'])
     radius = float(request_json['radius'])
+    timestamp_str = request_json['timestamp']
+    days = int(request_json.get('days', 7))
 
-    query_tweet = 'SELECT * from aggregate_tweet(%s, %s, %s)'
-    query2_temp = 'SELECT * from aggregate_temperature(%s, %s, %s)'
-    query3_mois = 'SELECT * from aggregate_moisture(%s, %s, %s)'
+    # generate date series. values are set to None/null
+    date_series = gen_date_series(days, timestamp_str)
+
+    query_tweet = 'SELECT * from aggregate_tweet(%s, %s, %s, TIMESTAMP %s, %s)'
+    query2_tmax = '''
+        select rft."date", avg(prism.tmax) from prism,
+        (
+            SELECT rft."date" from prism_info rft
+            where rft."date" <= TIMESTAMP %s -- UTC timezong
+            -- returning PDT without timezong label
+            and rft."date" > TIMESTAMP %s - ( %s || ' day')::interval
+        ) as rft,
+        (
+            select mesh.gid from us_mesh mesh 
+            WHERE st_dwithin(st_makepoint(%s, %s),mesh.geom, %s)
+        ) as gids
+        where prism.gid=gids.gid
+        and prism."date" = rft."date"
+        and prism.tmax != FLOAT 'NaN'
+        GROUP BY rft."date"
+    '''
+    query3_vpdmax = '''
+        select rft."date", avg(prism.vpdmax) from prism,
+        (
+            SELECT rft."date" from prism_info rft
+            where rft."date" <= TIMESTAMP %s -- UTC timezong
+            -- returning PDT without timezong label
+            and rft."date" > TIMESTAMP %s - ( %s || ' day')::interval
+        ) as rft,
+        (
+            select mesh.gid from us_mesh mesh 
+            WHERE st_dwithin(st_makepoint(%s, %s),mesh.geom, %s)
+        ) as gids
+        where prism.gid=gids.gid
+        and prism."date" = rft."date"
+        and prism.vpdmax != FLOAT 'NaN'
+        GROUP BY rft."date"
+    '''
+    query4_ppt = '''
+        select rft."date", avg(prism.ppt) from prism,
+        (
+            SELECT rft."date" from prism_info rft
+            where rft."date" <= TIMESTAMP %s -- UTC timezong
+            -- returning PDT without timezong label
+            and rft."date" > TIMESTAMP %s - ( %s || ' day')::interval
+        ) as rft,
+        (
+            select mesh.gid from us_mesh mesh 
+            WHERE st_dwithin(st_makepoint(%s, %s),mesh.geom, %s)
+        ) as gids
+        where prism.gid=gids.gid
+        and prism."date" = rft."date"
+        and prism.ppt != FLOAT 'NaN'
+        GROUP BY rft."date"
+    '''
     with Connection() as conn:
         cur = conn.cursor()
 
-        cur.execute(query_tweet, (lng, lat, radius))  # lng lat
-        tweet = cur.fetchone()
-        cur.execute(query2_temp, (lng, lat, radius))
-        temp = cur.fetchone()
-        cur.execute(query3_mois, (lng, lat, radius))
-        mois = cur.fetchone()
-        resp = make_response(jsonify({'tmp': temp[0] - 273.15, 'soilw': mois[0], 'cnt_tweet': tweet[0]}))
+        # tweet count from 'records'
+        cur.execute(query_tweet, (lng, lat, radius, timestamp_str, days))  # lng lat +-180
+        tweet = cur.fetchall()
+        tweet_series = fill_series(date_series, tweet)
+        # temp, mois from NOAA( NO! now is PRISM)
+        cur.execute(query2_tmax, (timestamp_str, timestamp_str, days, lng, lat, radius))
+        temp = cur.fetchall()
+        temp_series = fill_series(date_series, temp)
+        cur.execute(query3_vpdmax, (timestamp_str, timestamp_str, days, lng, lat, radius))
+        mois = cur.fetchall()
+        mois_series = fill_series(date_series, mois)
+        # ppt from PRISM
+        cur.execute(query4_ppt, (timestamp_str, timestamp_str, days, lng, lat, radius))
+        ppt = cur.fetchall()
+        ppt_series = fill_series(date_series, ppt)
+        resp = make_response(jsonify({'tmp': temp_series, 'soilw': mois_series, 'cnt_tweet': tweet_series,
+                                      'ppt': ppt_series}))
 
         cur.close()
+    return resp
+
+
+@bp.route('region-temp', methods=['GET'])
+def region_temp():
+    region_id = int(flask_request.args.get('region_id'))
+    timestamp_str = flask_request.args.get('timestamp')
+    days = int(flask_request.args.get('days', 7))
+
+    # generate date series. values are set to None/null
+    date_series = gen_date_series(days, timestamp_str)
+
+    query = '''
+    select date(rft.reftime), avg(tmp) from noaa0p25 noaa,
+    (
+        SELECT reftime, tid from noaa0p25_reftime rft
+        where rft.reftime < TIMESTAMP '{timestamp}'
+        and rft.reftime > TIMESTAMP '{timestamp}' - interval '{days} day'
+    ) as rft,
+    (
+        SELECT geometry.gid from noaa0p25_geometry_neg geometry,
+        (
+            SELECT geom from us_states WHERE state_id={region_id}
+            union
+            SELECT geom from us_counties WHERE county_id={region_id}
+            union
+            SELECT geom from us_cities WHERE city_id={region_id}
+        ) as region
+        where st_contains(region.geom, geometry.geom)
+    ) as gids
+    where noaa.gid=gids.gid
+    and noaa.tid = rft.tid
+    GROUP BY date(rft.reftime)
+    '''
+
+    with Connection() as conn:
+        cur = conn.cursor()
+        cur.execute(query.format(region_id=region_id, timestamp=timestamp_str, days=days))
+        resp = make_response(jsonify(
+            fill_series(date_series, cur.fetchall())
+        ))
+    return resp
+
+
+@bp.route('region-moisture', methods=['GET'])
+def region_moisture():
+    region_id = int(flask_request.args.get('region_id'))
+    timestamp_str = flask_request.args.get('timestamp')
+    days = int(flask_request.args.get('days', 7))
+
+    # generate date series. values are set to None/null
+    date_series = gen_date_series(days, timestamp_str)
+
+    query = '''
+    select date(rft.reftime), avg(soilw) from noaa0p25 noaa,
+    (
+        SELECT reftime, tid from noaa0p25_reftime rft
+        where rft.reftime < TIMESTAMP '{timestamp}'
+        and rft.reftime > TIMESTAMP '{timestamp}' - interval '{days} day'
+    ) as rft,
+    (
+        SELECT geometry.gid from noaa0p25_geometry_neg geometry,
+        (
+            SELECT geom from us_states WHERE state_id={region_id}
+            union
+            SELECT geom from us_counties WHERE county_id={region_id}
+            union
+            SELECT geom from us_cities WHERE city_id={region_id}
+        ) as region
+        where st_contains(region.geom, geometry.geom)
+    ) as gids
+    where noaa.gid=gids.gid
+    and noaa.tid = rft.tid
+    GROUP BY date(rft.reftime)
+    '''
+
+    with Connection() as conn:
+        cur = conn.cursor()
+        cur.execute(query.format(region_id=region_id, timestamp=timestamp_str, days=days))
+        resp = make_response(jsonify(
+            fill_series(date_series, cur.fetchall())
+        ))
     return resp
 
 
@@ -85,7 +251,7 @@ def soil_moisture_in_screen():
 @bp.route("/wind")
 def wind():
     # TODO: replace source of wind data to db
-    resp = make_response(send_from_directory('data', 'latest-wind.json'))
+    resp = make_response(send_from_directory('static/data', 'latest.json'))
     return resp
 
 
@@ -100,9 +266,9 @@ def rainfall():
 def send_temperature_data():
     # This sql gives the second lastest data for temperature within ractangle around US,
     # since the most lastest data is always updating (not completed)
-    temperature_fetch = Connection().sql_execute("select t.lat, t.long, t.temperature from recent_temperature t " \
-                                                 "where t.endtime = (select max(t.endtime) from recent_temperature t" \
-                                                 " where t.endtime <(select max(t.endtime) from recent_temperature t)) ")
+    temperature_fetch = Connection().sql_execute("select t.lat, t.long, t.temperature from recent_temperature t "
+                                                 "where t.endtime = (select max(t.endtime) from recent_temperature t"
+                                                 " where t.endtime <(select max(t.endtime) from recent_temperature t))")
 
     temperature_data_celsius = []  # format temp data into a dictionary structure
 
@@ -128,9 +294,7 @@ def points_in_us(pnts: List[Dict[str, float]], accuracy=0.001):
         To filter a list of points dict to a list of them within us boundary
         :param pnts: list of raw points that to be filtered. The format is [{lng: .., lat: .., else: ..}, ...]
         :param accuracy: Allow the path to be made slightly larger or smaller by change the default set of this value.
-
         :returns: a list of filtered points, in the same format of input pnt dicts
-
     """
     if not isinstance(pnts, list):
         raise TypeError("Input should be list as : [dict, dict, ...]")
@@ -147,7 +311,8 @@ def points_in_us(pnts: List[Dict[str, float]], accuracy=0.001):
         return result
 
 
-@bp.route("/firePolygon", methods=['POST'])
+
+@bp.route("/fire-polygon", methods=['POST'])
 def fire():
     # return a json of all fire name, fire time, and fire geometry inside the bounding box
     request_json = flask_request.get_json(force=True)
@@ -156,53 +321,74 @@ def fire():
     south = request_json['southWest']['lat']
     west = request_json['southWest']['lon']
     size = request_json['size']
-    if_merge_timeline = request_json['merge']
     start_date = request_json['startDate'][:10]
     end_date = request_json['endDate'][:10]
-    if if_merge_timeline == 1:
-        size_getters = {"full_resolution": "agg_fire_geom_full", "large_resolution": "agg_fire_geom_1e4", "medium_resolution": "agg_fire_geom_1e3", "small_resolution": "agg_fire_geom_1e2",
-                        "point_resolution": "get_center"}
-    else:
-        size_getters = {"full_resolution": "get_fire_geom_full", "large_resolution": "get_fire_geom_1e4", "medium_resolution": "get_fire_geom_1e3", "small_resolution": "get_fire_geom_1e2",
-                        "point_resolution": "get_center"}
+    size_getters = {0: "geom_full", 1: "geom_1e4", 2: "geom_1e3", 3: "geom_1e2",
+                    4: "geom_center"}
     poly = 'polygon(({0} {1}, {0} {2}, {3} {2}, {3} {1}, {0} {1}))'.format(east, south, north, west)
-    query = f"SELECT * from {size_getters[size]}('{poly}','{start_date}','{end_date}') "
-    if if_merge_timeline == 1:
-        resp = make_response(jsonify([{"type": "Feature",
-                                       "id": "01",
-                                       "properties": {"name": name, "agency": agency, "start_time": dt_start, "density": 520, "end_time": dt_end},
-                                       "geometry": json.loads(geom)}
-                                      for name, agency, geom, dt_start, dt_end in Connection.sql_execute(query)]))
-    else:
-        resp = make_response(jsonify([{"type": "Feature",
-                                       "id": "01",
-                                       "properties": {"name": name, "agency": agency, "datetime": dt, "density": 520},
-                                       "geometry": json.loads(geom)}
-                                      for name, agency, dt, geom in Connection.sql_execute(query)]))
+    query = f"SELECT id, name, agency,start_time, end_time, st_asgeojson({size_getters[size]}) as geom, max_area FROM " \
+            f"fire_merged f WHERE ((('{start_date}'::date <= f.end_time::date) AND " \
+            f"('{start_date}'::date >= f.start_time::date)) OR (('{end_date}'::date >= f.start_time::date) " \
+            f"AND ('{end_date}'::date <= f.end_time::date)) OR (('{start_date}'::date <= f.start_time::date) " \
+            f"AND ('{end_date}'::date >= f.end_time::date) )) " \
+            f"AND (st_contains(ST_GeomFromText('{poly}'),f.{size_getters[size]}) " \
+            f"OR st_overlaps(ST_GeomFromText('{poly}'),f.{size_getters[size]}))"
+    resp = make_response(jsonify([{"type": "Feature",
+                                   "id": fid,
+                                   "properties": {"name": name, "agency": agency, "starttime": start_time,
+                                                  "endtime": end_time, "density": 520, "area": max_area},
+                                   "geometry": json.loads(geom)}
+                                  for fid, name, agency, start_time, end_time, geom, max_area in
+                                  Connection.sql_execute(query)]))
     return resp
 
-# @bp.route("/firePolygon", methods=['POST'])
-# def fire():
-#     # return a json of all firename, firetime, and fire geometry inside the bounding box
-#     request_json = flask_request.get_json(force=True)
-#     north = request_json['northEast']['lat']
-#     east = request_json['northEast']['lon']
-#     south = request_json['southWest']['lat']
-#     west = request_json['southWest']['lon']
-#     size = request_json['size']
-#     startdate = request_json['startdate'][:10]
-#     enddate = request_json['enddate'][:10]
-#     size_dict = {0: "get_fire_geom_full", 1: "get_fire_geom_1e4", 2: "get_fire_geom_1e3", 3: "get_fire_geom_1e2", 4:"get_center"}
-#     poly = 'polygon(({0} {1}, {0} {2}, {3} {2}, {3} {1}, {0} {1}))'.format(east, south, north, west)
-#     size = size_dict[size]
-#     query = f"SELECT * from {size}('{poly}','{startdate}','{enddate}') "
-#     print(query)
-#     with Connection() as conn:
-#         cur = conn.cursor()
-#         cur.execute(query)
-#         resp = make_response(
-#             jsonify([{"type": "Feature", "id": "01", "properties": {"name": name, "agency": agency, "datetime": dt, "density": 520}, "geometry": json.loads(geom)} for name, agency, dt, geom in cur.fetchall()])
-#         )
-#             # jsonify([{"name": name, "agency": agency, "datetime": dt, "geom": geom} for name, agency, dt, geom in cur.fetchall()]))
-#         cur.close()
-#     return resp
+
+@bp.route("/fire-with-id", methods=['POST'])
+def fire_with_id():
+    request_json = flask_request.get_json(force=True)
+    id = request_json['id']
+    size = request_json['size']
+    size_getters = {0: "geom_full", 1: "geom_1e4", 2: "geom_1e3", 3: "geom_1e2",
+                    4: "geom_center"}
+    query = f"SELECT " \
+            f"id, name, if_sequence, agency, state, start_time, end_time, st_asgeojson({size_getters[size]}) as geom," \
+            f" st_asgeojson(st_envelope({size_getters[size]})) as bbox, " \
+            f"max_area FROM fire_merged where id = {id}"
+    resp = make_response(jsonify([{"type": "Feature",
+                                   "id": fid,
+                                   "properties": {"name": name, "agency": agency, "if_sequence": if_sequence,
+                                                  "starttime": start_time,
+                                                  "endtime": end_time, "density": 520, "area": max_area,
+                                                  "state": state},
+                                   "geometry": json.loads(geom),
+                                   "bbox": json.loads(bbox)
+                                   }
+                                  for fid, name, if_sequence, agency, state, start_time, end_time, geom, bbox, max_area
+                                  in
+                                  Connection.sql_execute(query)]))
+    return resp
+
+
+@bp.route("/fire-with-id-seperated", methods=['POST'])
+def fire_with_id_seperated():
+    request_json = flask_request.get_json(force=True)
+    id = request_json['id']
+    size = request_json['size']
+    size_getters = {0: "geom_full", 1: "geom_1e4", 2: "geom_1e3", 3: "geom_1e2",
+                    4: "geom_center"}
+    query = f"SELECT " \
+            f"f.id, f.name, f.if_sequence, f.agency, f.state, f.time,st_asgeojson(f.{size_getters[size]}) as geom," \
+            f" st_asgeojson(st_envelope(m.{size_getters[size]})) as bbox," \
+            f" f.area FROM fire_merged m, fire f where f.id = {id} and m.id = f.id"
+    resp = make_response(jsonify([{"type": "Feature",
+                                   "id": fid,
+                                   "properties": {"name": name, "agency": agency, "if_sequence": if_sequence,
+                                                  "time": time,
+                                                  "density": 520, "area": max_area, "state": state},
+                                   "geometry": json.loads(geom),
+                                   "bbox": json.loads(bbox)
+                                   }
+                                  for fid, name, if_sequence, agency, state, time, geom, bbox, max_area in
+                                  Connection.sql_execute(query)]))
+
+    return resp

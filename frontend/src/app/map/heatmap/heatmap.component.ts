@@ -1,10 +1,21 @@
-import {Component, OnInit} from '@angular/core';
-import 'leaflet/dist/leaflet.css';
 import * as $ from 'jquery';
 import HeatmapOverlay from 'leaflet-heatmap/leaflet-heatmap.js';
 import {MapService} from '../../services/map-service/map.service';
 import 'leaflet-maskcanvas';
 import 'leaflet-velocity-ts';
+import * as Highcharts from 'highcharts';
+
+import {SearchService} from '../../services/search/search.service';
+import {FireService} from '../../services/fire-service/fire.service';
+import {FireTweetLayer} from '../layers/fire.tweet.layer';
+import {WindLayer} from '../layers/wind.layer';
+import {of, Subject} from 'rxjs';
+import {FireRegionLayer} from '../layers/fire.region.layer';
+import {LocationBoundaryLayer} from '../layers/location.boundary.layer';
+import {LocationMarkerLayer} from '../layers/location.marker';
+import {Component, OnInit} from '@angular/core';
+
+import {TimeService} from '../../services/time/time.service';
 
 declare let L;
 
@@ -14,15 +25,24 @@ declare let L;
     styleUrls: ['./heatmap.component.css']
 })
 export class HeatmapComponent implements OnInit {
+
+    private static STATE_LEVEL_ZOOM = 8;
+    private static COUNTY_LEVEL_ZOOM = 9;
+    private locationBoundaryLayer;
     private mainControl;
-    private tweetData;
-    private tweetLayer;
-    private liveTweetLayer;
-    private liveTweetBird = [];
-    private liveTweetMarkers;
-    private liveTweetIdSet = new Set();
     private map;
-    private switchStatus = false;
+    private fireTweetLayer;
+    private windLayer;
+    private fireEventLayer;
+    private fireRegionLayer;
+    private locationMarkerLayer;
+
+    private pinRadius = 40000;
+    // For what to present when click event happens
+    private marker = null;
+    private group;
+    private timer = null;
+
 
     // Set up for a range and each smaller interval of temp to give specific color layers
     private tempLayers = [];
@@ -40,11 +60,83 @@ export class HeatmapComponent implements OnInit {
     private tempMax = 36;
     private tempMin = 0;
 
-    constructor(private mapService: MapService) {
+    constructor(private mapService: MapService, private searchService: SearchService,
+                private fireService: FireService, private timeService: TimeService) {
+    }
+
+    static drawChart(name, xValue, y1Name, y1Value, y1Unit, y2Name, y2Value, y2Unit, y2Color) {
+        Highcharts.chart(name, {
+            title: {
+                text: '',
+            },
+            chart: {
+                zoomType: 'x',
+                style: {
+                    fontSize: '10px',
+                },
+            },
+            xAxis: {
+                categories: xValue,
+                crosshair: true,
+            },
+            plotOptions: {
+                series: {
+                    allowPointSelect: true,
+                }
+            },
+            yAxis: [{ // Primary yAxis
+                labels: {
+                    format: '{value}' + y1Unit,
+                    style: {
+                        color: '#3b2f31',
+                        fontSize: '8px',
+                    }
+                },
+                title: {
+                    text: '',
+                }
+            }, { // Secondary yAxis
+                title: {
+                    text: '',
+                },
+                labels: {
+                    format: '{value} ' + y2Unit,
+                    style: {
+                        color: y2Color,
+                        fontSize: '8px',
+                    }
+                },
+                opposite: true
+            }],
+            tooltip: {
+                shared: true,
+            },
+            series: [{
+                name: y2Name,
+                type: 'spline',
+                color: y2Color,
+                yAxis: 1,
+                data: y2Value,
+                tooltip: {
+                    valueSuffix: ' ' + y2Unit,
+                },
+                showInLegend: false
+
+            }, {
+                name: y1Name,
+                type: 'spline',
+                color: '#3b2f31',
+                data: y1Value,
+                yAxis: 0,
+                tooltip: {
+                    valueSuffix: y1Unit,
+                },
+                showInLegend: false
+            }]
+        });
     }
 
     ngOnInit() {
-        // A hacky way to declare that
         // Initialize map and 3 base layers
         const mapBoxUrl = 'https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoibWFwYm94IiwiY' +
             'SI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw';
@@ -67,7 +159,6 @@ export class HeatmapComponent implements OnInit {
 
         this.mainControl = L.control.layers(baseLayers).addTo(this.map);
 
-        this.mapService.mapLoaded.emit([this.map, this.mainControl]);
         // Generate coordinate in sidebar
         this.map.addEventListener('mousemove', (ev) => {
             const lat = ev.latlng.lat;
@@ -76,158 +167,62 @@ export class HeatmapComponent implements OnInit {
         });
 
         // Get temperature data from service
-        this.mapService.getTemperatureData();
-        this.mapService.temperatureDataLoaded.subscribe(this.dotMapDataHandler);
-        this.mapService.temperatureDataLoaded.subscribe(this.heatmapDataHandler);
+        const tempSubject = new Subject();
+        tempSubject.subscribe(this.dotMapDataHandler);
+        tempSubject.subscribe(this.heatmapDataHandler);
+        this.mapService.getTemperatureData().subscribe(tempSubject);
+
+        // Get tweets data from service
+        this.fireTweetLayer = new FireTweetLayer(this.mainControl, this.mapService, this.map, this.timeService);
+
+        // Get fire events data from service
+        // this.fireEventLayer = new FireEventLayer(this.mainControl, this.mapService, this.map);
+
+        this.fireRegionLayer = new FireRegionLayer(this.mainControl, this.mapService, this.map,
+            this.fireService, this.timeService);
+
+        this.locationBoundaryLayer = new LocationBoundaryLayer(this.mainControl, this.mapService, this.map);
+
+        this.locationMarkerLayer = new LocationMarkerLayer(this.mainControl, this.mapService, this.map);
+        // Get wind events data from service
+        this.windLayer = new WindLayer(this.mainControl, this.mapService);
+
+        // Get boundary data from service to draw it on map
+        this.searchService.searchDataLoaded.subscribe(this.boundaryDataHandler);
+
+
+        // Add event Listener when user specify a time range on time series
+        $(window).on('timeRangeChange', this.fireTweetLayer.timeRangeChangeHandler);
+        $(window).on('timeRangeChange', this.fireRegionLayer.timeRangeChangeFirePolygonHandler);
+        // $(window).on('timeRangeChange', this.fireEventLayer.timeRangeChangeFireEventHandler);
 
         // Send temp range selected from service
         this.mapService.temperatureChangeEvent.subscribe(this.rangeSelectHandler);
 
-        // Get tweets data from service
-        this.mapService.getFireTweetData();
-        this.mapService.fireTweetDataLoaded.subscribe(this.tweetDataHandler);
+        this.map.on('mousedown', e => this.onMapHold(e));
+        this.mapService.getRecentTweetData().subscribe(data => this.fireTweetLayer.recentTweetLoadHandler(data));
 
-        // Get fire events data from service
-        this.mapService.getWildfirePredictionData();
-        this.mapService.fireEventDataLoaded.subscribe(this.fireEventHandler);
-
-        // Add event Listener to live tweet switch
-        $('#liveTweetSwitch').on('click', this.liveTweetSwitchHandler);
-
-        // Add event Listener when user specify a time range on time series
-        $(window).on('timeRangeChange', this.timeRangeChangeHandler);
     }
 
-    tweetDataHandler = (data) => {
-        this.tweetLayer = L.TileLayer.maskCanvas({
-            radius: 10,
-            useAbsoluteRadius: true,
-            color: '#000',
-            opacity: 1,
-            noMask: true,
-            lineColor: '#e25822'
-        });
-        const tempData = [];
-        this.tweetData = data.tweetData;
-        data.tweetData.forEach(x => {
-            tempData.push([x[0], x[1]]);
-        });
 
-        this.tweetLayer.setData(tempData);
-        this.mainControl.addOverlay(this.tweetLayer, 'Fire tweet');
-
-    };
-
-
-    liveTweetSwitchHandler = () => {
-        if (this.switchStatus === true) {
-            this.liveTweetLayer.clearLayers();
-            this.mapService.stopLiveTweet();
-            this.switchStatus = false;
-            return;
-        }
-        this.mapService.getLiveTweetData();
-        this.mapService.liveTweetLoaded.subscribe(this.liveTweetDataHandler);
-        this.switchStatus = true;
-    };
-
-    liveTweetDataHandler = (data) => {
-        this.liveTweetMarkers = L.TileLayer.maskCanvas({
-            radius: 10,
-            useAbsoluteRadius: true,
-            color: '#000',
-            opacity: 1,
-            noMask: true,
-            lineColor: '#e25822'
-        });
-
-        // Mockup Data for liveTweetLayer
-        const birdIcon = L.icon({
-            iconUrl: 'assets/image/perfectBird.gif',
-            iconSize: [20, 20]
-        });
-
-        const birdCoordinates = [];
-
-        data.data.forEach((tweet) => {
-            if (!this.liveTweetIdSet.has(tweet.id)) {
-                const point = [tweet.lat, tweet.long];
-                birdCoordinates.push([tweet.lat, tweet.long]);
-                const marker = L.marker(point, {icon: birdIcon}).bindPopup('I am a live tweet');
-                this.liveTweetBird.push(marker);
-                this.liveTweetIdSet.add(tweet.id);
-            }
-        });
-
-        this.liveTweetLayer = L.layerGroup(this.liveTweetBird);
-        this.liveTweetLayer.addTo(this.map);
-
-
-        this.liveTweetMarkers.setData(birdCoordinates);
-        const birds = $('.leaflet-marker-icon');
-        window.setTimeout(() => {
-            this.liveTweetBird = [];
-            this.liveTweetLayer.clearLayers();
-            this.liveTweetLayer.addLayer(this.liveTweetMarkers);
-        }, 3200);
-        let bird: any = 0;
-        for (bird of birds) {
-            if (bird.src.indexOf('perfectBird') !== -1) {
-                $(bird).css('animation', 'fly 3s linear');
-            }
-        }
-    };
-
-    timeRangeChangeHandler = (event, data) => {
-        const tempData = [];
-        this.tweetData.forEach(entry => {
-            if (entry[2] > data.timebarStart && entry[2] < data.timebarEnd) {
-                tempData.push([entry[0], entry[1]]);
-            }
-        });
-        this.tweetLayer.setData(tempData);
-    };
-
-    fireEventHandler = (data) => {
-
-        const fireEventList = [];
-
-        for (const ev of data.fireEvents) {
-            const point = [ev.lat, ev.long];
-            const size = 40;
-            const fireIcon = L.icon({
-                iconUrl: 'assets/image/pixelfire.gif',
-                iconSize: [size, size],
-            });
-            const marker = L.marker(point, {icon: fireIcon}).bindPopup('I am on fire(image>40%)');
-            fireEventList.push(marker);
-
-        }
-        const fireEvents = L.layerGroup(fireEventList);
-        this.mainControl.addOverlay(fireEvents, 'Fire event');
-    };
-
-    windDataHandler = (wind) => {
-        // there's not much document about leaflet-velocity.
-        // all we got is an example usage from
-        // github.com/0nza1101/leaflet-velocity-ts
-        const velocityLayer = L.velocityLayer({
-            displayValues: true,
-            displayOptions: {
-                position: 'bottomleft', // REQUIRED !
-                emptyString: 'No velocity data', // REQUIRED !
-                angleConvention: 'bearingCW', // REQUIRED !
-                velocityType: 'Global Wind',
-                displayPosition: 'bottomleft',
-                displayEmptyString: 'No wind data',
-                speedUnit: 'm/s'
-            },
-            data: wind.data,
-            maxVelocity: 12 // affect color and animation speed of wind
-        });
-        this.mainControl.addOverlay(velocityLayer, 'Global wind');
-    };
-
+    // fireEventHandler = (data) => {
+    //
+    //     const fireEventList = [];
+    //
+    //     for (const ev of data.fireEvents) {
+    //         const point = [ev.lat, ev.long];
+    //         const size = 40;
+    //         const fireIcon = L.icon({
+    //             iconUrl: 'assets/image/pixelfire.gif',
+    //             iconSize: [size, size],
+    //         });
+    //         const marker = L.marker(point, {icon: fireIcon}).bindPopup('I am on fire(image>40%). My evidence is:<br/>' + ev.text);
+    //         fireEventList.push(marker);
+    //
+    //     }
+    //     const fireEvents = L.layerGroup(fireEventList);
+    //     this.mainControl.addOverlay(fireEvents, 'Fire event');
+    // };
 
     heatmapDataHandler = (data) => {
         // use heatmapOverlay from leaflet-heatmap
@@ -264,7 +259,7 @@ export class HeatmapComponent implements OnInit {
         const heatmapLayer = new HeatmapOverlay(heatmapConfig);
         heatmapLayer.setData({max: 680, data});
         this.mainControl.addOverlay(heatmapLayer, 'Temp heatmap');
-    };
+    }
 
     dotMapDataHandler = (data) => {
         const latLongBins = [];
@@ -278,7 +273,6 @@ export class HeatmapComponent implements OnInit {
             }
             latLongBins.push(points);
         }
-        console.log(latLongBins);
         // Assign a different color and a layer for each small temperature interval
         for (let i = 0; i < this.colorList.length; i++) {
             this.tempLayer = L.TileLayer.maskCanvas({
@@ -292,14 +286,187 @@ export class HeatmapComponent implements OnInit {
             this.tempLayer.setData(latLongBins[i]);
             this.tempLayers.push(this.tempLayer);
         }
-    };
+    }
 
+    onMapClick(e) {
+        // const oldMarker = this.marker;
+        // const oldGroup = this.group;
+        // if (oldMarker !== null) {
+        //     if (oldMarker.isSticky) {
+        //         oldGroup.addTo(this.map);
+        //     }
+        // }
+        let aggregatedDataSubInBound;
+
+        function mouseMoveChangeRadius(event) {
+            const newRadius = distance(circle._latlng, event.latlng);
+            localBound.setRadius(newRadius);
+            circle.setRadius(newRadius);
+        }
+
+
+        function distance(center, pt) {
+            // convert unit : degree of latlng to meter. eg: 1degree = 111km = 111000m
+            return 111000 * Math.sqrt(Math.pow(center.lat - pt.lat, 2) + Math.pow(center.lng - pt.lng, 2));
+        }
+
+        const clickIcon = L.icon({
+            iconUrl: 'assets/image/pin6.gif',
+            iconSize: [26, 30],
+        });
+        const marker = L.marker(e.latlng, {draggable: false, icon: clickIcon});
+        marker.isSticky = false;
+        const circle = L.circle(e.latlng, {
+            stroke: false,
+            fillColor: 'white',
+            fillOpacity: 0.35,
+            radius: 40000,
+        });
+        const localBound = L.circle(e.latlng, {
+            radius: 40000,
+            color: 'white',
+            weight: 5,
+            fill: false,
+            bubblingMouseEvents: false,
+        })
+            .on('mouseover', () => {
+                localBound.setStyle({color: '#919191'});
+            })
+            .on('mouseout', () => {
+                localBound.setStyle({color: 'white'});
+            })
+            .on('mousedown', () => {
+                this.map.removeEventListener('click');
+                this.map.dragging.disable();
+                this.map.on('mousemove', mouseMoveChangeRadius);
+
+                this.map.on('mouseup', (event) => {
+                    const newRadius = distance(circle._latlng, event.latlng);
+                    aggregatedDataSubInBound = this.mapService.getClickData(e.latlng.lat, e.latlng.lng, newRadius / 111000, new Date(this.timeService.getRangeDate()[1]).toISOString(), 7)  // convert unit :  meter to degree of latlng. eg: 1degree = 111km = 111000m
+                        .subscribe(this.clickPointHandler);
+                    this.map.dragging.enable();
+                    this.map.removeEventListener('mousemove', mouseMoveChangeRadius);
+                    setTimeout(() => {
+                        this.map.on('mousedown', this.onMapHold, this);
+                        this.map.removeEventListener('mouseup');
+                    }, 500);
+                }, this);
+            });
+        const group = L.layerGroup([marker, circle, localBound]).addTo(this.map);
+
+        marker.bindPopup('You clicked the map at ' + e.latlng.toString(), {
+            closeOnClick: false,
+            autoClose: true,
+        }).openPopup();
+
+        this.map.on('mousedown', (e) => this.judgeDistance(e, group));
+
+        this.marker = marker;
+        this.group = L.layerGroup([marker, circle, localBound]);
+
+        // TODO: change marker from global var since it only specify one.
+        const aggregatedDataSub = this.mapService.getClickData(e.latlng.lat, e.latlng.lng, this.pinRadius / 111000, new Date(this.timeService.getRangeDate()[1]).toISOString(), 7)
+            .subscribe(this.clickPointHandler);
+
+        marker.getPopup().on('remove', () => {
+            group.remove();
+            aggregatedDataSub.unsubscribe();
+            if (aggregatedDataSubInBound !== undefined) {
+                aggregatedDataSubInBound.unsubscribe();
+            }
+        }); // Remove popup fire remove all (default is not sticky)
+
+    }
+
+    judgeDistance(event, group) {
+        this.map.on('mouseup', (e) => {
+            if (event.latlng.lat === e.latlng.lat && event.latlng.lng === e.latlng.lng) {
+                // if (!that.marker.isSticky) {
+                group.remove();
+                // }
+            }
+        });
+    }
+
+
+    clickPointHandler = (data) => {
+        const cntTime = [];
+        const cntValue = [];
+        for (const tweetcnt of data.cnt_tweet) {
+            cntTime.push(tweetcnt[0]);
+            if (tweetcnt[1] === null) {
+                cntValue.push(0);
+            } else {
+                cntValue.push(tweetcnt[1]);
+            }
+        }
+        const tmpTime = [];
+        const tmpValue = [];
+        for (const avgtmp of data.tmp) {
+            tmpTime.push(avgtmp[0]);
+            if (avgtmp[1] === null) {
+                tmpValue.push(0);
+            } else {
+                tmpValue.push(avgtmp[1] - 273.15);  // transfer the unit to celsius eg. 273 Kelvin --> 0 Celsius
+            }
+        }
+
+        const soilwTime = [];
+        const soilwValue = [];
+        for (const avgsoilw of data.soilw) {
+            soilwTime.push(avgsoilw[0]);
+            if (avgsoilw[1] === null) {
+                soilwValue.push(0);
+            } else {
+                soilwValue.push(avgsoilw[1] * 100); // transfer the unit to percent eg. 0.23 --> 23 %
+            }
+        }
+
+        const pptTime = [];
+        const pptValue = [];
+        for (const avgppt of data.ppt) {
+            pptTime.push(avgppt[0]);
+            if (avgppt[1] === null) {
+                pptValue.push(0);
+            } else {
+                pptValue.push(avgppt[1]);
+            }
+        }
+
+        this.marker.bindPopup(this.clickboxContentsToShow).openPopup();
+        HeatmapComponent.drawChart('container', soilwTime, 'Tweet counts', cntValue, 'tweets',
+            'Moisture', soilwValue, '%', '#d9db9c');
+        HeatmapComponent.drawChart('container2', tmpTime, 'Tweet counts', cntValue, 'tweets',
+            'Temperature', tmpValue, 'Celsius', '#c4968b');
+        HeatmapComponent.drawChart('container3', pptTime, 'Tweet counts', cntValue, 'tweets',
+            'Precipitation', pptValue, 'mm', '#9fc7c3');
+
+        this.marker.getPopup().on('remove', () => {
+            this.group.remove();
+        });
+
+        // if (this.marker.isSticky) {
+        //     this.group.addTo(this.map);
+        // }
+    }
+
+    // stickyBotton = () => {
+    //     const clickboxContents = $('<div />');
+    //     clickboxContents.html('<button href="#" class="leaflet-popup-sticky-button1">S</button><br>')
+    //         .on('click', '.leaflet-popup-sticky-button1', () => {
+    //             this.marker.isSticky = !this.marker.isSticky;
+    //             if (this.marker.isSticky) {
+    //                 this.group.addTo(this.map);
+    //             }
+    //         });
+    //     clickboxContents.append(this.clickboxContentsToShow);
+    //     return clickboxContents[0];
+    // };
 
     rangeSelectHandler = (event) => {
         const inRange = (min: number, max: number, target: number) => {
             return target < max && target >= min;
         };
-
         // Respond to the input range of temperature from the range selector in side bar
         // var int: always keep the latest input Max/Min temperature
         if (event.high !== undefined) {
@@ -312,7 +479,7 @@ export class HeatmapComponent implements OnInit {
             this.tempRegionsMax = [];
             let startSelecting = false;
             // Push layers in selected range into list tempRegionsMax
-            for (let i = 0; i < this.tempBreaks.length; i++) {
+            for (let i = 0; i < this.tempBreaks.length - 1; i++) {
                 const rangeMin = this.tempBreaks[i];
                 const rangeMax = this.tempBreaks[i + 1];
                 if (inRange(rangeMin, rangeMax, this.tempMin)) {
@@ -334,7 +501,150 @@ export class HeatmapComponent implements OnInit {
             for (const region of this.tempRegionsMax) {
                 region.addTo(this.map);
             }
-            console.log(this.tempRegionsMax);
         }
+    }
+
+
+    boundaryDataHandler = ([[data], value]) => {
+        // given the boundary data after the keyword search, fits the map according to the boundary and shows the name label
+        // not plotting anything, only zooming in
+        const listWithFixedLL = [];
+        if (data) {
+            // list will be converted because of the lat and lon are misplaced
+            for (const item of data.coordinates[0]) {
+                listWithFixedLL.push([parseFloat(item[1]), parseFloat(item[0])]);
+            }
+            this.map.fitBounds(listWithFixedLL); // fits map according to the given fixed boundary list
+            const centerLatLng = this.getPolygonCenter(listWithFixedLL);
+            this.mapService.searchMarkerLoaded.emit([centerLatLng, value]);
+            // sends the center of the polygon to the location.boundary layer
+        }
+    }
+
+    getPolygonCenter = (coordinateArr) => {
+        // gets the center point when given a coordinate array
+        // OPTIMIZE: the get polygon center function
+        const x = coordinateArr.map(a => a[0]);
+        const y = coordinateArr.map(a => a[1]);
+        const minX = Math.min.apply(null, x);
+        const maxX = Math.max.apply(null, x);
+        const minY = Math.min.apply(null, y);
+        const maxY = Math.max.apply(null, y);
+        return [(minX + maxX) / 2, (minY + maxY) / 2];
+    }
+
+    onMapHold(event) {
+        const duration = 1000;
+        if (this.timer !== null) {
+            clearTimeout(this.timer);
+            this.timer = null;
+        }
+
+        this.map.on('mouseup', () => {
+            clearTimeout(this.timer);
+            this.timer = null;
+        });
+
+        this.timer = setTimeout(L.Util.bind(() => {
+            of(event).subscribe((ev) => this.onMapClick(ev));
+            this.timer = null;
+        }, this), duration);
+    }
+
+
+    clickboxContentsToShow() {
+        const chartContents = '    <div id="containers" style="width: 280px; height: 360px;">\n' +
+            '    <div id="container" style="width: 280px; height: 120px; margin: 0px; float: left;"></div>\n' +
+            '    <div id="container2" style="width: 280px; height: 120px; margin: 0px; float: left;"></div>\n' +
+            '    <div id="container3" style="width: 280px; height: 120px; margin: 0px; float: left;"></div>\n';
+
+
+        const tweetContents = '    <div id="hh" style="width: 400px; height: 200px;">\n' +
+            '    <div id="hh1" style="width: 200px; height: 100px; margin: 0px; float: left;"></div>\n' +
+            '    <div id="hh2" style="width: 200px; height: 100px; margin: 0px; float: right;"></div>\n' +
+            '    <div id="hh3" style="width: 200px; height: 100px; margin: 0px; float: left;"></div>\n' +
+            '    <div id="hh4" style="width: 200px; height: 100px; margin: 0px;float: right;;"></div>\n';
+
+        const clickboxContents = '<style>' +
+            `.leaflet-popup-content {
+                width: 400px;
+            }
+            .tabs {
+                position: relative;
+                min-height: 400px;
+                min-width: 320px;
+                clear: both;
+                margin: 0px 0;
+            }
+            .tab {
+                float: left;
+                display: none;
+            }
+            .tab:first-of-type {
+                display: inline-block;
+            }
+            .tabs-link {
+                position: relative;
+                top: -14px;
+                height: 20px;
+                left: -40px;
+            }
+            .tab-link {
+                background: #eee;
+                display: inline-block;
+                padding: 10px;
+                border: 1px solid #ccc;
+                margin-left: -1px;
+                position: relative;
+                list-style-type: none;
+                left: 1px;
+                top: 1px;
+                cursor: pointer;
+            }
+            .tab-link {
+                background: #f8f8f8;
+            }
+            .content {
+                background: white;
+                position: absolute;
+                top: 28px;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                padding: 20px;
+                border: 1px solid #ccc;
+            }
+            .tab:target {
+                display: block;
+            }` +
+            '</style>' +
+            '<div class="tabs" >' +
+            '<div class="tab" id="tab-1" >' +
+            '<div class="content">' +
+            '<b>' +
+            chartContents +
+            '</b>' +
+            '</div>' +
+            '</div>' +
+
+            '<div class="tab" id="tab-2" >' +
+            '<div class="content">' +
+            '<b>Put tweets contents here later</b>' +
+            '</div>' +
+            '</div>' +
+
+            '<div class="tab" id="tab-3" >' +
+            '<div class="content">' +
+            '<b>whatever else</b>' +
+            '</div>' +
+            '</div>' +
+
+            '<ul class="tabs-link">' +
+            '<li class="tab-link"> <a href="#tab-1"><span>Charts</span></a></li>' +
+            '<li class="tab-link"> <a href="#tab-2"><span>Tweets</span></a></li>' +
+            '<li class="tab-link"> <a href="#tab-3"><span>Else</span></a></li>' +
+            '</ul>' +
+            '</div>';
+        return clickboxContents;
     }
 }

@@ -1,0 +1,43 @@
+.example-form {
+    min-width: 100px;
+    max-width: 450px;
+    width: 100%;
+    z-index: 1000000;
+    position: absolute;
+    background-color: white;
+    border: none;
+    color: #ff8420;
+    opacity: 0.9;
+    left: 40%;
+    border-radius: 5px;
+
+}
+
+.example-full-width {
+    width: 100%;
+}
+
+::ng-deep .cdk-overlay-container .cdk-overlay-connected-position-bounding-box .cdk-overlay-pane .mat-autocomplete-panel {
+    /*drop down panel color*/
+    background-color: rgb(255, 255, 255) !important;
+    opacity: 0.9 !important;
+}
+
+::ng-deep .cdk-overlay-container .cdk-overlay-connected-position-bounding-box .cdk-overlay-pane .mat-option {
+    /*drop down options color*/
+    color: #ff8420 !important;
+    font-size: 15px !important;
+
+}
+
+::ng-deep .example-form.ng-untouched.ng-pristine.ng-valid {
+    /*background of the input box*/
+    height: 48px;
+    top: 5%;
+    position: absolute;
+}
+
+
+::ng-deep .ng-star-inserted {
+    color: #ff8420 !important;
+}

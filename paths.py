@@ -20,6 +20,8 @@ LOG_CONFIG_PATH = os.path.join(CONFIGS_DIR, 'logger-conf.json')
 
 NLTK_MODEL_PATH = os.path.join(ROOT_DIR, 'backend/models/nltk_model.pickle')
 
+TEXT_CNN_MODEL_PATH = os.path.join(ROOT_DIR, 'backend/models/text_cnn_classifier.ckpt')
+
 IMAGE_CLASSIFIER_VGG_PATH = os.path.join(ROOT_DIR, 'backend/models/img_classifier_model.ckpt')
 
 IMAGE_CLASSIFIER_RESNET_PATH = os.path.join(ROOT_DIR, 'backend/models/ResNet1.ckpt')
@@ -29,6 +31,12 @@ EVENT2MIND_MODEL_PATH = os.path.join(ROOT_DIR, 'backend/models/event2mind-2018.1
 TEST_DATA_PATH = os.path.join(ROOT_DIR, 'data/test')
 
 GRIB2_DATA_DIR = os.path.join(ROOT_DIR, 'data', 'grib-data')
+
+SOIL_MOIS_DATA_DIR = os.path.join(ROOT_DIR, 'data', 'soil-mois-data')
+
+US_SHAPE_PATH = os.path.join(ROOT_DIR, 'data', 'US-continental', 'US_continental.shp')
+
+USGS_DATA_DIR = os.path.join(ROOT_DIR, 'data', 'usgs')
 
 WIND_DATA_DIR = os.path.join(ROOT_DIR, 'backend', 'data')
 
@@ -41,3 +49,9 @@ TWEET_IMAGES_DIR = os.path.join(ROOT_DIR, 'data/tweet_images')
 MODELS_SAVE_PATH = os.path.join(ROOT_DIR, 'backend/models/')
 
 BOUNDARY_PATH = os.path.join(ROOT_DIR, 'data/boundaries')
+
+IMAGE_TRAIN_PATH = os.path.join(ROOT_DIR, 'data/image_dataset/train')
+
+IMAGE_VAL_PATH = os.path.join(ROOT_DIR, 'data/image_dataset/val')
+
+PRISM_DATA_PATH = os.path.join(ROOT_DIR, 'data', 'prism')

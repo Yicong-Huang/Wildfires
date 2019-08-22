@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Union, Optional, List
 
+import numpy as np
 import rootpath
 
 rootpath.append()
-from backend.data_preparation.dumper.dumperbase import DumperBase, DumperException
-from backend.data_preparation.extractor.extractorbase import ExtractorBase, ExtractorException
+from backend.data_preparation.dumper.dumperbase import DumperBase
+from backend.data_preparation.extractor.extractorbase import ExtractorBase
 
 
 class CrawlerBase(ABC):
@@ -22,31 +23,10 @@ class CrawlerBase(ABC):
         self.dumper = dumper
 
     @abstractmethod
-    def crawl(self, *args, **kwargs) -> Union[List, Dict]:
-        # save crawled to self.data (in-memory), or, if needed, to disk file
-        # also return a reference of self.data
+    def crawl(self, *args, **kwargs) -> Union[List, Dict, np.array]:
+        # saves the crawled data to self.data (in-memory), or, if needed, to disk file.
+        # also returns a reference of self.data
         pass
-
-    @abstractmethod
-    def start(self, end_clause=None, *args, **kwargs) -> None:
-
-        # TODO: This function is meant to be as
-        # verify if both extractor and dumper are set up, raise ExtractorException or DumperException respectively
-        if not self.extractor:
-            raise ExtractorException
-        if not self.dumper:
-            raise DumperException
-
-        # until it reaches the end_clause
-        while not end_clause:
-            # start crawling information to in-memory structure self.data
-            raw_data = self.crawl()
-
-            # call extractor to extract from self.data
-            extracted_data = self.extractor.extract(raw_data)
-
-            # call dumper to data from self.data to database
-            self.dumper.insert(extracted_data)
 
     def __getitem__(self, index):
         # get item from in-memory structure self.data
