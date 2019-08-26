@@ -16,6 +16,9 @@ logger = logging.getLogger('TaskManager')
 
 
 class SoilMoisCrawler(CrawlerBase):
+    """
+    This class is responsible for collecting data from NASAGrace
+    """
     TIME_FORMAT = "%Y%m%d"
 
     def __init__(self):
@@ -27,6 +30,10 @@ class SoilMoisCrawler(CrawlerBase):
         pass
 
     def crawl(self, date_stamp: date) -> Optional[str]:
+        """
+        :param date_stamp: the date stamp of the file which is being crawled
+        :return: crawled file's path if file exists on NASAGrace, else None
+        """
         formatted_date_stamp = date_stamp.strftime('%Y%m%d')
         file_url = f'{self.baseDir}/{formatted_date_stamp}/sfsm_perc_0125deg_US_{formatted_date_stamp}.tif'
         if not os.path.isdir(SOIL_MOIS_DATA_DIR):
