@@ -49,7 +49,7 @@ class Event2MindClassifier(ClassifierBase):
         """
         Gives text as an input to model, then gets a prediction dictionary as an output.
         :param text: one record of tweet text from records in database.
-        :param target: type of reactions or intents to be inserted into database
+        :param target: type of reactions or intents to be inserted into database.
         :return: prediction dictionary which contains several types of reactions or intents with corresponding probabilities.
         """
 
