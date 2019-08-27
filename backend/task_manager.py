@@ -381,7 +381,7 @@ class TaskManager:
     def lower_case_prompt(message: str) -> str:
         """
         Makes the message into a lower case one
-        the exception will be caught in kill_a_thread() and task_selection()
+        The exception will be caught in kill_a_thread() and task_selection()
         """
         return input(message).strip().lower()
 
