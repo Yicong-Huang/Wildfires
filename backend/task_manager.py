@@ -1,5 +1,6 @@
 """
 @author: Yang Cao, Tingxuan Gu, Yichi Zhang
+This file contains following classes: Task, RunningThread, TaskManager
 """
 import ctypes
 import glob
@@ -36,7 +37,7 @@ class Task:
         self.used_number = list()  # register which numbers has been used
 
     def get_next_number(self) -> int:
-        """ get minimum available number """
+        """Gets minimum available number"""
         for v in range(1, 100):
             if v not in self.used_number:
                 return v
@@ -87,7 +88,8 @@ class TaskManager:
     @classmethod
     def load_runnables(cls):
         """
-        tasks should be stored in relative path 'task'
+        Loads runnables from 'task' directory
+        Tasks should be stored in relative path 'task'
         :return:
         """
 
@@ -115,6 +117,7 @@ class TaskManager:
     @staticmethod
     def initialize_logger() -> Logger:
         """
+        Initializes a logger
         :return: initialized logger for the task manager
         """
         with open(LOG_CONFIG_PATH, 'r') as file:
@@ -148,6 +151,7 @@ class TaskManager:
     @classmethod
     def add_task_option(cls, task_name: str, task_func: Callable) -> None:
         """
+        Adds a task option
         :param task_name: name of this task option
         :param task_func: the runnable of this task
         (DEPRECATED):param task_number: id of this next task eg. let's say we had a wind_crawler-1 is running, to make our second
@@ -161,6 +165,7 @@ class TaskManager:
     @classmethod
     def delete_task_option(cls, task_option_id: int) -> None:
         """
+        Deletes a task option
         :param task_option_id: id of task option you want to delete
         """
         cls.task_options.pop(task_option_id)
@@ -168,6 +173,7 @@ class TaskManager:
     @classmethod
     def task_option_to_string(cls) -> str:
         """
+        Changes all the task options to strings
         :return: formatted tasks in the current task option dictionary
         """
         to_return = ""
@@ -179,7 +185,7 @@ class TaskManager:
     @classmethod
     def run(cls, task_option_id, loop, interval, args=None) -> None:
         """
-        Starting a thread to run a selected task, the exception will be caught in `run_a_task()`
+        Starts a thread to run a selected task, the exception will be caught in `run_a_task()`
         :param task_option_id: task id for task in the task option list
         :param loop:  determine is this is a looped task
         :param interval: time between each execution of the looped task
@@ -283,7 +289,7 @@ class TaskManager:
 
     def pass_arguments(self, task_prompt) -> list:
         """
-        Get function run()'s arguments and let user to enter the arguments, then return the argument list args
+        Gets function run()'s arguments and let user to enter the arguments, then return the argument list args
         the exception will be caught in run_a_task()
         """
         args = []
@@ -345,7 +351,7 @@ class TaskManager:
 
     def run_a_task(self, task_prompt) -> None:
         """
-        the exception will be caught in main()
+        The exception will be caught in main()
         :param task_prompt: the id of the task that user wants to start
         :return: None
         """
@@ -374,14 +380,14 @@ class TaskManager:
     @staticmethod
     def lower_case_prompt(message: str) -> str:
         """
-        Make the message into a lower case one
+        Makes the message into a lower case one
         the exception will be caught in kill_a_thread() and task_selection()
         """
         return input(message).strip().lower()
 
     def kill_a_thread(self) -> None:
         """
-        Provide the user with the running threads and user can choose one to kill
+        Provides the user with the running threads and user can choose one to kill
         the exception will be caught in main()
         """
         print("You have following tasks running: ")
@@ -399,7 +405,7 @@ class TaskManager:
 
     def task_selection(self) -> (int, int):
         """
-        Provide user with choices and user can choose to run/kill a thread or quit the task manager
+        Provides user with choices and user can choose to run/kill a thread or quit the task manager
         the exception will be caught in main()
         :return: selected task's number(str/None), task mode(task, kill or quit)
         """
