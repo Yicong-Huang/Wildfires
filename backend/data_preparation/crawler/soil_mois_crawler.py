@@ -29,9 +29,6 @@ class SoilMoisCrawler(CrawlerBase):
         self.baseDir = 'https://nasagrace.unl.edu/GRACE'
         self.select_exists = 'select datetime from env_soil_moisture group by datetime having count(*) = 872505'
 
-    def start(self):
-        pass
-
     def crawl(self, date_stamp: date) -> Optional[str]:
         """
         :param date_stamp: the date stamp of the file which is being crawled
@@ -51,7 +48,7 @@ class SoilMoisCrawler(CrawlerBase):
             return os.path.join(SOIL_MOIS_DATA_DIR, formatted_date_stamp + '.tif')
 
     def get_exists(self) -> set:
-        """get how far we went last time"""
+        """gets how far we went last time"""
         return set(Connection.sql_execute(self.select_exists))
 
 
