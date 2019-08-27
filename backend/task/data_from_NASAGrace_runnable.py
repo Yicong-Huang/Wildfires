@@ -1,3 +1,6 @@
+'''
+@author: Tingxuan Gu
+'''
 import glob
 import logging
 import os
