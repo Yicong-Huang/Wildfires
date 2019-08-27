@@ -125,7 +125,7 @@ def aggregation():
         cur.execute(query_tweet, (lng, lat, radius, timestamp_str, days))  # lng lat +-180
         tweet = cur.fetchall()
         tweet_series = fill_series(date_series, tweet)
-        # temp, mois from NOAA( NO! now is PRISM)
+        # tmax, vpdmax from PRISM
         cur.execute(query2_tmax, (timestamp_str, timestamp_str, days, lng, lat, radius))
         temp = cur.fetchall()
         temp_series = fill_series(date_series, temp)
@@ -145,6 +145,11 @@ def aggregation():
 
 @bp.route('region-temp', methods=['GET'])
 def region_temp():
+    """
+    (unused) average temperature in a administrative boundary
+    from NOAA table
+    :return:
+    """
     region_id = int(flask_request.args.get('region_id'))
     timestamp_str = flask_request.args.get('timestamp')
     days = int(flask_request.args.get('days', 7))
@@ -186,6 +191,11 @@ def region_temp():
 
 @bp.route('region-moisture', methods=['GET'])
 def region_moisture():
+    """
+    (unused) average soil moisture in a administrative boundary
+    from NOAA table
+    :return:
+    """
     region_id = int(flask_request.args.get('region_id'))
     timestamp_str = flask_request.args.get('timestamp')
     days = int(flask_request.args.get('days', 7))
@@ -227,6 +237,11 @@ def region_moisture():
 
 @bp.route("/temp", methods=['POST'])
 def temperature_in_screen():
+    """
+    (unused) temperature within user screen
+    from NOAA table
+    :return:
+    """
     request_json = flask_request.get_json(force=True)
     north = request_json['northEast']['lat']
     east = request_json['northEast']['lon']
@@ -249,6 +264,11 @@ def temperature_in_screen():
 
 @bp.route("/soilw", methods=['POST'])
 def soil_moisture_in_screen():
+    """
+    (unused) soil moisture within user screen
+    from NOAA table
+    :return:
+    """
     request_json = flask_request.get_json(force=True)
     north = request_json['northEast']['lat']
     east = request_json['northEast']['lon']
@@ -270,6 +290,10 @@ def soil_moisture_in_screen():
 
 @bp.route("/wind")
 def wind():
+    """
+    global wind. from a static file
+    :return:
+    """
     # TODO: replace source of wind data to db
     resp = make_response(send_from_directory('static/data', 'latest.json'))
     return resp
@@ -277,6 +301,9 @@ def wind():
 
 @bp.route("/rain_fall")
 def rainfall():
+    """
+    (unused) rain fall data from a static .csv file
+    """
     # TODO: replace source of rain fall data to db
     resp = make_response(send_from_directory('data', 'rain_fall_sample.csv'))
     return resp
@@ -284,6 +311,12 @@ def rainfall():
 
 @bp.route("/recent-temp")
 def send_temperature_data():
+    """
+    for heatmap layer. provide temp data from a small dataset.
+    will call points_in_us() to filter out points not in the US
+    """
+
+    # TODO: replace the source of this part
     # This sql gives the second lastest data for temperature within ractangle around US,
     # since the most lastest data is always updating (not completed)
     temperature_fetch = Connection().sql_execute("select t.lat, t.long, t.temperature from recent_temperature t "
@@ -346,12 +379,12 @@ def fire():
                     4: "geom_center"}
     poly = 'polygon(({0} {1}, {0} {2}, {3} {2}, {3} {1}, {0} {1}))'.format(east, south, north, west)
     query = f"SELECT id, name, agency,start_time, end_time, st_asgeojson({size_getters[size]}) as geom, max_area FROM " \
-            f"fire_merged f WHERE ((('{start_date}'::date <= f.end_time::date) AND " \
-            f"('{start_date}'::date >= f.start_time::date)) OR (('{end_date}'::date >= f.start_time::date) " \
-            f"AND ('{end_date}'::date <= f.end_time::date)) OR (('{start_date}'::date <= f.start_time::date) " \
-            f"AND ('{end_date}'::date >= f.end_time::date) )) " \
-            f"AND (st_contains(ST_GeomFromText('{poly}'),f.{size_getters[size]}) " \
-            f"OR st_overlaps(ST_GeomFromText('{poly}'),f.{size_getters[size]}))"
+        f"fire_merged f WHERE ((('{start_date}'::date <= f.end_time::date) AND " \
+        f"('{start_date}'::date >= f.start_time::date)) OR (('{end_date}'::date >= f.start_time::date) " \
+        f"AND ('{end_date}'::date <= f.end_time::date)) OR (('{start_date}'::date <= f.start_time::date) " \
+        f"AND ('{end_date}'::date >= f.end_time::date) )) " \
+        f"AND (st_contains(ST_GeomFromText('{poly}'),f.{size_getters[size]}) " \
+        f"OR st_overlaps(ST_GeomFromText('{poly}'),f.{size_getters[size]}))"
     resp = make_response(jsonify([{"type": "Feature",
                                    "id": fid,
                                    "properties": {"name": name, "agency": agency, "starttime": start_time,
@@ -370,9 +403,9 @@ def fire_with_id():
     size_getters = {0: "geom_full", 1: "geom_1e4", 2: "geom_1e3", 3: "geom_1e2",
                     4: "geom_center"}
     query = f"SELECT " \
-            f"id, name, if_sequence, agency, state, start_time, end_time, st_asgeojson({size_getters[size]}) as geom," \
-            f" st_asgeojson(st_envelope({size_getters[size]})) as bbox, " \
-            f"max_area FROM fire_merged where id = {id}"
+        f"id, name, if_sequence, agency, state, start_time, end_time, st_asgeojson({size_getters[size]}) as geom," \
+        f" st_asgeojson(st_envelope({size_getters[size]})) as bbox, " \
+        f"max_area FROM fire_merged where id = {id}"
     resp = make_response(jsonify([{"type": "Feature",
                                    "id": fid,
                                    "properties": {"name": name, "agency": agency, "if_sequence": if_sequence,
@@ -396,9 +429,9 @@ def fire_with_id_seperated():
     size_getters = {0: "geom_full", 1: "geom_1e4", 2: "geom_1e3", 3: "geom_1e2",
                     4: "geom_center"}
     query = f"SELECT " \
-            f"f.id, f.name, f.if_sequence, f.agency, f.state, f.time,st_asgeojson(f.{size_getters[size]}) as geom," \
-            f" st_asgeojson(st_envelope(m.{size_getters[size]})) as bbox," \
-            f" f.area FROM fire_merged m, fire f where f.id = {id} and m.id = f.id"
+        f"f.id, f.name, f.if_sequence, f.agency, f.state, f.time,st_asgeojson(f.{size_getters[size]}) as geom," \
+        f" st_asgeojson(st_envelope(m.{size_getters[size]})) as bbox," \
+        f" f.area FROM fire_merged m, fire f where f.id = {id} and m.id = f.id"
     resp = make_response(jsonify([{"type": "Feature",
                                    "id": fid,
                                    "properties": {"name": name, "agency": agency, "if_sequence": if_sequence,
