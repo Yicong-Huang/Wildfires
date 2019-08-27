@@ -30,6 +30,7 @@ class TweetCrawler(CrawlerBase):
         self.api = twitter.Api(**parse(TWITTER_API_CONFIG_PATH, 'twitter-API'))
         self.data = []
         self.keywords = []
+        self.region = 'United%20States'
         self.total_crawled_count = 0
         self.crawled_id_set: Set[int] = set()
         self.data_from_db_count = 0
@@ -64,7 +65,7 @@ class TweetCrawler(CrawlerBase):
 
     def crawl(self, keywords: List, batch_number: int, fetch_from_db: bool) -> Union[Dict, List]:
         """crawl the tweets and save them into self.data"""
-
+        # FIXME: keywords parameter is not used. its misleading that we have both self.keywords and keywords parameter
         if not fetch_from_db:
             # crawl status ids
             logger.info(f"Online Mode: Total crawled count {self.total_crawled_count}")
@@ -112,7 +113,7 @@ class TweetCrawler(CrawlerBase):
             }  # Simulates request from a mac browser
             try:
                 resp = requests.get(
-                    f'https://twitter.com/i/search/timeline?f=tweets&vertical=news&q={keyword}%20near%3A\"United%20States'
+                    f'https://twitter.com/i/search/timeline?f=tweets&vertical=news&q={keyword}%20near%3A\"{self.region}'
                     f'\"%20within%3A8000mi&l=en&src=typd', headers=headers)
 
             except requests.exceptions.RequestException:

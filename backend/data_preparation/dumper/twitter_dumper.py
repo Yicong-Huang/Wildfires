@@ -21,8 +21,10 @@ class TweetDumper(DumperBase):
         self.inserted_locations_count = 0
         self.inserted_count = 0
 
-    def insert(self, data_list: List[Dict]) -> None:
+    def insert(self, data_list: List[Dict], region: str) -> None:
         """inserts the given list into the database"""
+        # add prefix if target region is not US
+        postfix = f'_{region}' if region != 'United%20States' else ''
         # construct sql statement to insert data into the records db table
         tuples_records = []
         for data in data_list:
@@ -32,6 +34,8 @@ class TweetDumper(DumperBase):
                                 data['followers_count'],
                                 data['favourites_count'], data['friends_count'], data['user_id'], data['user_location'],
                                 data['statuses_count'])]
+
+            # FIXME: this counting is not correct... tweets may be re-crawled by crawler
             self.inserted_count += 1
 
         try:
@@ -39,7 +43,7 @@ class TweetDumper(DumperBase):
                 cur = connection.cursor()
                 if tuples_records:
                     extras.execute_values(cur,
-                                          f"insert into records (id,create_at, text, hash_tag,profile_pic,created_date_time,screen_name,"
+                                          f"insert into records{postfix} (id,create_at, text, hash_tag,profile_pic,created_date_time,screen_name,"
                                           f"user_name,followers_count,favourites_count,friends_count,user_id,user_location,statuses_count"
                                           f") values %s "
                                           f"ON CONFLICT(id) DO UPDATE set text = excluded.text, profile_pic = excluded.profile_pic, "
@@ -54,7 +58,7 @@ class TweetDumper(DumperBase):
         except Exception as err:
             logger.error(str(err) + traceback.format_exc())
         else:
-            logger.info(f'data inserted into records {self.inserted_count}')
+            logger.info(f'data inserted into records{postfix} {self.inserted_count}')
         # construct sql statement to insert data into the locations db table
         tuples_locations: list[tuple] = []
         for data in data_list:
@@ -68,7 +72,7 @@ class TweetDumper(DumperBase):
                 cur = connection.cursor()
                 if tuples_locations:
                     extras.execute_values(cur,
-                                          f"insert into locations (id, top_left_lat, top_left_long, bottom_right_lat,"
+                                          f"insert into locations{postfix} (id, top_left_lat, top_left_long, bottom_right_lat,"
                                           f"bottom_right_long) values %s "
                                           f"ON CONFLICT(id) DO NOTHING;", tuples_locations)
                 connection.commit()
@@ -76,7 +80,7 @@ class TweetDumper(DumperBase):
         except Exception as err:
             logger.error(str(err) + traceback.format_exc())
         else:
-            logger.info(f'data inserted into locations {self.inserted_locations_count}')
+            logger.info(f'data inserted into locations{postfix} {self.inserted_locations_count}')
 
     def report_status(self):
         return self.inserted_count, self.inserted_locations_count
