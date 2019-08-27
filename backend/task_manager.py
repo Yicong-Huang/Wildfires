@@ -14,7 +14,7 @@ from typing import Callable, List, Dict
 import rootpath
 
 rootpath.append()
-from paths import LOG_DIR, LOG_CONFIG_PATH
+from paths import LOG_DIR, LOG_CONFIG_PATH, TASK_DIR
 
 
 # don't delete these imports because they're called implicitly
@@ -92,7 +92,7 @@ class TaskManager:
         # TODO: remove existing modules
 
         # find tasks
-        task_dir = os.path.join(os.path.realpath(__file__), '..', 'task')
+        task_dir = TASK_DIR
         tasks = [os.path.split(file)[-1].strip(".py").strip("./")
                  for file in glob.glob(os.path.join(task_dir, './*.py'))]
 
@@ -170,7 +170,7 @@ class TaskManager:
         to_return = ""
         for option in cls.task_options:
             to_return += f" [{option}]: {cls.task_options[option].task_name}-" \
-                f"{cls.task_options[option].get_next_number()} \n"
+                         f"{cls.task_options[option].get_next_number()} \n"
         return to_return
 
     @classmethod
