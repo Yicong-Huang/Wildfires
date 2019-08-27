@@ -136,7 +136,7 @@ class ImageClassifier(ClassifierBase):
 
     def train(self, train_path: str, num_epochs: int = EPOCHS) -> RESNET_MODEL_TYPE:
         """
-        Train a CNN model using ResNet50.
+        Trains a CNN model using ResNet50.
 
         Basic structures:
             Training Data: Preprocessed data in a format of 32(default) batch size loader
@@ -178,7 +178,7 @@ class ImageClassifier(ClassifierBase):
     @staticmethod
     def load_dataloader(dataset_path: str, process_mode: int) -> DATA_LOADER_TYPE:
         """
-        Preprocess training or testing data into dataloader.
+        Preprocesses training or testing data into dataloader.
 
         Process including:
             1. Normalization
@@ -222,7 +222,7 @@ class ImageClassifier(ClassifierBase):
 
     def check_accuracy(self, model: RESNET_MODEL_TYPE, val_path: str):
         """
-        Use test data to print out accuracy
+        Uses test data to print out accuracy
 
         :param model: Trained model used to check accuracy
         :param val_path: Path of testing data
@@ -244,7 +244,7 @@ class ImageClassifier(ClassifierBase):
     @staticmethod
     def save_model(model: RESNET_MODEL_TYPE, modelname: str):
         """
-        Save the model locally.
+        Saves the model locally.
 
         :param model: Trained model.
         :param modelname: Trained model name.
@@ -325,7 +325,7 @@ class ImageClassifier(ClassifierBase):
     @staticmethod
     def prettify(tensor_topk) -> list:
         """
-        Transfer tensor object into list of confidence level. From tensor Object to a list, where index
+        Transfers tensor object into list of confidence level. From tensor Object to a list, where index
         representing the class and the value of the index representing the probability.
 
         :param tensor_topk: Top 2 tensor object which contains the corresponding probability of each class.
