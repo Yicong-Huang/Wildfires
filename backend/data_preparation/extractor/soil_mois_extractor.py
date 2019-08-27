@@ -35,7 +35,7 @@ class TiffExtractor(ExtractorBase):
         self.data = []
 
     def extract(self, file_path: str) -> np.ndarray:
-        """Using file path to extract data"""
+        """Uses file path to extract data"""
         temp_new_res_image_path = os.path.join(SOIL_MOIS_DATA_DIR,
                                                os.path.basename(file_path).split('.')[-2] + '_new_res.tif')
         temp_masked_image_path = os.path.join(SOIL_MOIS_DATA_DIR,
@@ -74,7 +74,7 @@ class TiffExtractor(ExtractorBase):
     @staticmethod
     def mask_by_us_shape(src_path, dest_path) -> None:
         """
-        Use the shape file to mask the tiff file, saving this method just in case
+        Uses the shape file to mask the tiff file, saving this method just in case
         US shape file is provided in `US_SHAPE_PATH`
         :param src_path: the path to the source tiff file
         :param dest_path: the path to save the masked tiff file
