@@ -26,3 +26,4 @@ numpy==1.16.4
 psycopg2==2.8.3
 timeout-decorator
 mypy
+retrying
